@@ -53,7 +53,7 @@ static ssize_t mode_store(struct kobject *kobj, struct kobj_attribute *attr, con
 	return count;
 }
 
-static struct kobj_attribute mode_attribute = __ATTR(mode, 0666, mode_show, mode_store);
+static struct kobj_attribute mode_attribute = __ATTR(mode, 0644, mode_show, mode_store);
 
 static struct attribute *thermal_perf_attrs[] = {
 	&mode_attribute.attr,

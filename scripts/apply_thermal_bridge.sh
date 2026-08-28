@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Apply Stealth Thermal Perf Kernel Bridge
-# Adds /sys/kernel/thermal_perf/mode and hooks cpu_cooling.c / devfreq_cooling.c
+# Adds /sys/kernel/thermal_perf/mode & /sys/kernel/thermal_perf/fastcharge
 # 100% Mountless & Zero-Detection by Anti-Cheat (ACE / Momo / Hunter)
 
 set -eo pipefail
@@ -20,7 +20,8 @@ cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 // SPDX-License-Identifier: GPL-2.0
 /*
  * thermal_perf_bridge.c - Kernel-space Dynamic Thermal & Performance Bridge
- * Allows mountless dynamic switching: Powersafe (0), Balance (1), Game (2).
+ * Allows mountless dynamic switching: Powersafe (0), Balance (1), Game (2)
+ * and 90W Extreme HyperCharge thermal limit bypass.
  */
 
 #include <linux/module.h>
@@ -30,13 +31,20 @@ cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 #include <linux/sysfs.h>
 #include <linux/thermal.h>
 
-static int thermal_perf_mode = 1; /* Default: 1 (Balance) */
+static int thermal_perf_mode = 1;       /* Default: 1 (Balance) */
+static int thermal_perf_fastcharge = 0; /* Default: 0 (Normal charging) */
 
 int thermal_perf_get_mode(void)
 {
 	return thermal_perf_mode;
 }
 EXPORT_SYMBOL_GPL(thermal_perf_get_mode);
+
+int thermal_perf_get_fastcharge(void)
+{
+	return thermal_perf_fastcharge;
+}
+EXPORT_SYMBOL_GPL(thermal_perf_get_fastcharge);
 
 static ssize_t mode_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
@@ -53,10 +61,27 @@ static ssize_t mode_store(struct kobject *kobj, struct kobj_attribute *attr, con
 	return count;
 }
 
+static ssize_t fastcharge_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", thermal_perf_fastcharge);
+}
+
+static ssize_t fastcharge_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int val;
+	if (kstrtoint(buf, 10, &val) < 0 || (val != 0 && val != 1))
+		return -EINVAL;
+	thermal_perf_fastcharge = val;
+	pr_info("ThermalPerf: 90W fastcharge set to %d\n", val);
+	return count;
+}
+
 static struct kobj_attribute mode_attribute = __ATTR(mode, 0644, mode_show, mode_store);
+static struct kobj_attribute fastcharge_attribute = __ATTR(fastcharge, 0644, fastcharge_show, fastcharge_store);
 
 static struct attribute *thermal_perf_attrs[] = {
 	&mode_attribute.attr,
+	&fastcharge_attribute.attr,
 	NULL,
 };
 
@@ -80,7 +105,7 @@ static int __init thermal_perf_bridge_init(void)
 		return ret;
 	}
 
-	pr_info("ThermalPerf: Kernel Bridge initialized (/sys/kernel/thermal_perf/mode)\n");
+	pr_info("ThermalPerf: Kernel Bridge initialized (/sys/kernel/thermal_perf/{mode,fastcharge})\n");
 	return 0;
 }
 

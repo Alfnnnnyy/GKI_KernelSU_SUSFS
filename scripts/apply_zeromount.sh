@@ -91,13 +91,25 @@ fi
 # Ensure Kconfig has config ZEROMOUNT
 if ! grep -q "config ZEROMOUNT" fs/Kconfig; then
   echo "Adding config ZEROMOUNT to fs/Kconfig..."
-  sed -i '/endmenu/i \nconfig ZEROMOUNT
+  python3 - <<'PY'
+with open("fs/Kconfig", "r", encoding="utf-8") as f:
+    kconfig = f.read()
+if "config ZEROMOUNT" not in kconfig:
+    entry = '''
+config ZEROMOUNT
 	bool "ZeroMount Path Redirection Subsystem"
 	default y
 	help
 	  ZeroMount allows path redirection and virtual file injection
 	  without mounting filesystems. Useful for systemless modifications.
-' fs/Kconfig
+'''
+    if "endmenu" in kconfig:
+        kconfig = kconfig.replace("endmenu", entry + "\nendmenu", 1)
+    else:
+        kconfig += entry
+    with open("fs/Kconfig", "w", encoding="utf-8") as f:
+        f.write(kconfig)
+PY
 fi
 
 # Ensure defconfig has CONFIG_ZEROMOUNT=y

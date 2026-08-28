@@ -97,26 +97,42 @@ if ! grep -q "thermal_perf_bridge.o" drivers/thermal/Makefile; then
   echo "✓ Added thermal_perf_bridge.o to drivers/thermal/Makefile"
 fi
 
-# 3. Hook cpu_cooling.c (suppress CPU throttling in Game Mode)
-CPU_COOL="drivers/thermal/cpu_cooling.c"
-if [ -f "$CPU_COOL" ] && ! grep -q "thermal_perf_get_mode" "$CPU_COOL"; then
-  echo "Hooking $CPU_COOL..."
-  # Add declaration at top
-  sed -i '1i extern int thermal_perf_get_mode(void);' "$CPU_COOL"
-  # Add override in cpufreq_set_cur_state
-  sed -i '/cpufreq_set_cur_state(struct thermal_cooling_device \*cdev, unsigned long state)/{n; /unsigned int cpu = /a	if (thermal_perf_get_mode() == 2) state = 0;
-}' "$CPU_COOL" || sed -i '/static int cpufreq_set_cur_state/a extern int thermal_perf_get_mode(void);	if (thermal_perf_get_mode() == 2) state = 0;' "$CPU_COOL" || true
-  echo "✓ Hooked cpu_cooling.c for zero throttling in Game Mode"
-fi
+# 3. Hook cpu_cooling.c and devfreq_cooling.c using Python
+python3 - <<'PY'
+import os
+import re
 
-# 4. Hook devfreq_cooling.c (suppress GPU throttling in Game Mode)
-DEVFREQ_COOL="drivers/thermal/devfreq_cooling.c"
-if [ -f "$DEVFREQ_COOL" ] && ! grep -q "thermal_perf_get_mode" "$DEVFREQ_COOL"; then
-  echo "Hooking $DEVFREQ_COOL..."
-  sed -i '1i extern int thermal_perf_get_mode(void);' "$DEVFREQ_COOL"
-  sed -i '/devfreq_cooling_set_cur_state/{n; a	if (thermal_perf_get_mode() == 2) state = 0;
-}' "$DEVFREQ_COOL" || true
-  echo "✓ Hooked devfreq_cooling.c for GPU stability in Game Mode"
-fi
+def patch_cooling_file(filepath, fn_signature, label):
+    if not os.path.exists(filepath):
+        print(f"::warning::{filepath} not found")
+        return
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+    if "thermal_perf_get_mode" not in content:
+        content = "extern int thermal_perf_get_mode(void);
+" + content
+
+    fn_match = re.search(rf'({fn_signature}[\s\S]*?\{{)([\s\S]*?)(if\s*\()', content)
+    if fn_match and "thermal_perf_get_mode() == 2" not in content:
+        prefix = fn_match.group(1)
+        decls = fn_match.group(2)
+        if_stmt = fn_match.group(3)
+        replacement = f"{prefix}{decls}	if (thermal_perf_get_mode() == 2)
+		state = 0;
+
+	{if_stmt}"
+        content = content.replace(fn_match.group(0), replacement, 1)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"✓ Hooked {label} for zero throttling in Game Mode")
+    elif "thermal_perf_get_mode() == 2" in content:
+        print(f"✓ {label} already hooked")
+    else:
+        print(f"::warning::Could not match {fn_signature} in {filepath}")
+
+patch_cooling_file("drivers/thermal/cpu_cooling.c", "cpufreq_set_cur_state", "cpu_cooling.c")
+patch_cooling_file("drivers/thermal/devfreq_cooling.c", "devfreq_cooling_set_cur_state", "devfreq_cooling.c")
+PY
 
 echo "✓ Thermal Perf Kernel Bridge successfully integrated into kernel source!"

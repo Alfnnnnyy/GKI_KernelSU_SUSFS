@@ -416,6 +416,11 @@ jobs:
           curl -LSs "https://github.com/zzh20188/GKI_KernelSU_SUSFS/raw/refs/heads/dev/hmbird_patch.c" -o hmbird_patch.c
           echo "obj-y += hmbird_patch.o" >> Makefile
 
+            - name: 集成 Thermal Perf 动态温控驱动 (ACE Stealth Bridge)
+        working-directory: ${{ env.KERNEL_ROOT }}
+        run: |
+          bash "$GITHUB_WORKSPACE/scripts/apply_thermal_bridge.sh" "$KERNEL_ROOT"
+
       - name: 隐藏 uinput-xiaomi 输入设备 (ACE Detector Fix)
         working-directory: ${{ env.KERNEL_ROOT }}/common
         run: |

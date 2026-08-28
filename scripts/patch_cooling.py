@@ -31,7 +31,7 @@ def patch_file(filepath, fn_signature, label):
 
 if __name__ == "__main__":
     common_dir = sys.argv[1] if len(sys.argv) > 1 else "."
-    cpu_c = os.path.join(common_dir, "drivers/thermal/cpu_cooling.c")
+    cpufreq_c = os.path.join(common_dir, "drivers/thermal/cpufreq_cooling.c")
     devfreq_c = os.path.join(common_dir, "drivers/thermal/devfreq_cooling.c")
-    patch_file(cpu_c, "cpufreq_set_cur_state", "cpu_cooling.c")
+    patch_file(cpufreq_c, "cpufreq_set_cur_state", "cpufreq_cooling.c")
     patch_file(devfreq_c, "devfreq_cooling_set_cur_state", "devfreq_cooling.c")

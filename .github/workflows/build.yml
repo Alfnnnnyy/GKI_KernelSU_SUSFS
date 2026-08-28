@@ -416,6 +416,22 @@ jobs:
           curl -LSs "https://github.com/zzh20188/GKI_KernelSU_SUSFS/raw/refs/heads/dev/hmbird_patch.c" -o hmbird_patch.c
           echo "obj-y += hmbird_patch.o" >> Makefile
 
+      - name: 隐藏 uinput-xiaomi 输入设备 (ACE Detector Fix)
+        working-directory: ${{ env.KERNEL_ROOT }}/common
+        run: |
+          echo "应用 uinput-xiaomi 输入设备名称伪装 (xiaomi-touchkey)..."
+          INPUT_C="drivers/input/input.c"
+          if [ -f "$INPUT_C" ]; then
+            if ! grep -q "uinput-xiaomi" "$INPUT_C"; then
+              sed -i '/int error;/a\n	if (dev->name && !strcmp(dev->name, "uinput-xiaomi")) {\n		dev->name = "xiaomi-touchkey";\n	}' "$INPUT_C" || true
+              echo "已注入 input.c 设备名称拦截规则"
+            fi
+          fi
+          UINPUT_C="drivers/input/misc/uinput.c"
+          if [ -f "$UINPUT_C" ]; then
+            sed -i 's/"uinput-xiaomi"/"xiaomi-touchkey"/g' "$UINPUT_C" 2>/dev/null || true
+          fi
+
       - name: 确定 KernelSU 分支
         id: ksu-branch
         run: |

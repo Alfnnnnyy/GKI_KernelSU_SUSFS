@@ -11,18 +11,15 @@ def patch_file(filepath, fn_signature, label):
         content = f.read()
 
     if "thermal_perf_get_mode" not in content:
-        content = "extern int thermal_perf_get_mode(void);
-" + content
+        content = "extern int thermal_perf_get_mode(void);\n" + content
 
-    fn_match = re.search(rf'({fn_signature}[\s\S]*?\{{)([\s\S]*?)(if\s*\()', content)
+    fn_pattern = re.compile(rf'({fn_signature}[\s\S]*?\{{)([\s\S]*?)(if\s*\()')
+    fn_match = fn_pattern.search(content)
     if fn_match and "thermal_perf_get_mode() == 2" not in content:
         prefix = fn_match.group(1)
         decls = fn_match.group(2)
         if_stmt = fn_match.group(3)
-        replacement = f"{prefix}{decls}	if (thermal_perf_get_mode() == 2)
-		state = 0;
-
-	{if_stmt}"
+        replacement = prefix + decls + "\tif (thermal_perf_get_mode() == 2)\n\t\tstate = 0;\n\n\t" + if_stmt
         content = content.replace(fn_match.group(0), replacement, 1)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)

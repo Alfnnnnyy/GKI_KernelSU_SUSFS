@@ -30,6 +30,7 @@ cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
 #include <linux/thermal.h>
+#include <linux/string.h>
 
 static int thermal_perf_mode = 1;       /* Default: 1 (Balance) */
 static int thermal_perf_fastcharge = 0; /* Default: 0 (Normal charging) */
@@ -45,6 +46,45 @@ int thermal_perf_get_fastcharge(void)
 	return thermal_perf_fastcharge;
 }
 EXPORT_SYMBOL_GPL(thermal_perf_get_fastcharge);
+
+void thermal_perf_filter_cdev_state(const char *type, unsigned long *state)
+{
+	int mode = thermal_perf_mode;
+	int fc = thermal_perf_fastcharge;
+
+	if (!type || !state)
+		return;
+
+	/* 1. Fastcharge or Game Mode: Neutralize all battery/charger thermal throttling */
+	if (fc == 1 || mode == 2) {
+		if (strstr(type, "battery") || strstr(type, "chg") || 
+		    strstr(type, "charger") || strstr(type, "fcc") ||
+		    strstr(type, "thermal_fcc") || strstr(type, "usb")) {
+			*state = 0; /* Force State 0: 100% Full 90W Peak Current */
+			return;
+		}
+	}
+
+	/* 2. Game Mode: Neutralize CPU, GPU, DDR, Cluster, Pause, and Hotplug throttling */
+	if (mode == 2) {
+		if (strstr(type, "cpu") || strstr(type, "gpu") || 
+		    strstr(type, "kgsl") || strstr(type, "ddr") || 
+		    strstr(type, "cluster") || strstr(type, "pause") || 
+		    strstr(type, "hotplug") || strstr(type, "cdev")) {
+			*state = 0; /* Force State 0: 100% Zero Throttle, Max Freq */
+			return;
+		}
+	}
+
+	/* 3. Powersafe Mode: Enforce energy saving cooling states */
+	if (mode == 0) {
+		if (strstr(type, "cpu") || strstr(type, "gpu") || strstr(type, "kgsl")) {
+			if (*state < 2)
+				*state = 2; /* Enforce Minimum Cooling State 2 */
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(thermal_perf_filter_cdev_state);
 
 static ssize_t mode_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
@@ -122,7 +162,7 @@ if ! grep -q "thermal_perf_bridge.o" drivers/thermal/Makefile; then
   echo "✓ Added thermal_perf_bridge.o to drivers/thermal/Makefile"
 fi
 
-# 3. Hook cpu_cooling.c and devfreq_cooling.c using patch_cooling.py
+# 3. Hook thermal cooling devices & PMIC power supply using patch_cooling.py
 python3 "$GITHUB_WORKSPACE/scripts/patch_cooling.py" "$COMMON_DIR"
 
 echo "✓ Thermal Perf Kernel Bridge successfully integrated into kernel source!"

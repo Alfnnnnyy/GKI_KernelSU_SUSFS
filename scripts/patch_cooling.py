@@ -15,16 +15,17 @@ def patch_file(filepath, fn_signature, label):
 
     fn_pattern = re.compile(rf'({fn_signature}[\s\S]*?\{{)([\s\S]*?)(if\s*\()')
     fn_match = fn_pattern.search(content)
-    if fn_match and "thermal_perf_get_mode() == 2" not in content:
+    if fn_match and "thermal_perf_get_mode" not in fn_match.group(2):
         prefix = fn_match.group(1)
         decls = fn_match.group(2)
         if_stmt = fn_match.group(3)
-        replacement = prefix + decls + "\tif (thermal_perf_get_mode() == 2)\n\t\tstate = 0;\n\n\t" + if_stmt
+        override = "\tif (thermal_perf_get_mode() == 2) {\n\t\tstate = 0;\n\t} else if (thermal_perf_get_mode() == 0 && state < 2) {\n\t\tstate = 2;\n\t}\n\n\t"
+        replacement = prefix + decls + override + if_stmt
         content = content.replace(fn_match.group(0), replacement, 1)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-        print(f"✓ Hooked {label} for zero throttling in Game Mode")
-    elif "thermal_perf_get_mode() == 2" in content:
+        print(f"✓ Hooked {label} with 3-Stage Dynamic Kernel Logic (Powersafe/Balance/Game)")
+    elif "thermal_perf_get_mode" in content:
         print(f"✓ {label} already hooked")
     else:
         print(f"::warning::Could not match {fn_signature} in {filepath}")

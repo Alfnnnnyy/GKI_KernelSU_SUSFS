@@ -30,10 +30,10 @@ def inject_decl_and_hook(filepath, hook_decl, search_pattern, hook_code, label):
         return False
 
 def patch_cooling_framework(common_dir):
-    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);"
+    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\nextern unsigned int thermal_perf_get_freq_floor(const char *type, unsigned int cur_freq, unsigned int max_freq);"
     fc_decl = "extern int thermal_perf_get_fastcharge(void);\nextern int thermal_perf_get_mode(void);"
 
-    # 1. Hook cpufreq_cooling.c
+    # 1. Hook cpufreq_cooling.c (State unthrottle + Game Mode frequency floor boost)
     cpufreq_c = os.path.join(common_dir, "drivers/thermal/cpufreq_cooling.c")
     hook_cpufreq = "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n"
     inject_decl_and_hook(
@@ -41,10 +41,20 @@ def patch_cooling_framework(common_dir):
         decl,
         r'cpufreq_set_cur_state\s*\([^)]*\)\s*\{[^}]*?struct freq_qos_request\s*\*[a-zA-Z0-9_]+\s*=\s*&[a-zA-Z0-9_]+->qos_req;',
         hook_cpufreq,
-        "cpufreq_cooling.c (CPU Frequency Cooling)"
+        "cpufreq_cooling.c (CPU Frequency Cooling State Override)"
     )
 
-    # 2. Hook devfreq_cooling.c
+    # Inject floor boost right after target_freq calculation in cpufreq_cooling.c
+    hook_cpufreq_floor = "\ttarget_freq = thermal_perf_get_freq_floor(cdev->type, target_freq, cpufreq_cdev->freq_table[0].frequency);\n"
+    inject_decl_and_hook(
+        cpufreq_c,
+        decl,
+        r'target_freq\s*=\s*cpufreq_cdev->freq_table\[state\]\.frequency\s*;',
+        hook_cpufreq_floor,
+        "cpufreq_cooling.c (Game Mode Low-Latency Frequency Floor Boost)"
+    )
+
+    # 2. Hook devfreq_cooling.c (GPU Devfreq state override)
     devfreq_c = os.path.join(common_dir, "drivers/thermal/devfreq_cooling.c")
     hook_devfreq = "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n"
     inject_decl_and_hook(
@@ -68,8 +78,6 @@ def patch_cooling_framework(common_dir):
 
     # 4. Hook thermal_helpers.c (Intercepts in-kernel governor throttling calculations)
     thermal_helpers_c = os.path.join(common_dir, "drivers/thermal/thermal_helpers.c")
-    hook_helpers = "\tthermal_perf_filter_cdev_state(cdev->type, &cdev->target_order);\n"
-    # Try hooking __thermal_cooling_device_update or thermal_zone_trip_update
     inject_decl_and_hook(
         thermal_helpers_c,
         decl,

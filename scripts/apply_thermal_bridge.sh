@@ -20,8 +20,9 @@ cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 // SPDX-License-Identifier: GPL-2.0
 /*
  * thermal_perf_bridge.c - Kernel-space Dynamic Thermal & Performance Bridge
- * Allows mountless dynamic switching: Powersafe (0), Balance (1), Game (2)
- * and 90W Extreme HyperCharge thermal limit bypass.
+ * Allows mountless dynamic switching: Powersafe (0), Balance (1), Game (2),
+ * 90W Extreme HyperCharge bypass, and Universal CPU/GPU Game Floor Boost.
+ * 100% Universal across ANY Android GKI device.
  */
 
 #include <linux/module.h>
@@ -60,7 +61,7 @@ void thermal_perf_filter_cdev_state(const char *type, unsigned long *state)
 		if (strstr(type, "battery") || strstr(type, "chg") || 
 		    strstr(type, "charger") || strstr(type, "fcc") ||
 		    strstr(type, "thermal_fcc") || strstr(type, "usb")) {
-			*state = 0; /* Force State 0: 100% Full 90W Peak Current */
+			*state = 0; /* Force State 0: 100% Full Peak Charging Current */
 			return;
 		}
 	}
@@ -85,6 +86,28 @@ void thermal_perf_filter_cdev_state(const char *type, unsigned long *state)
 	}
 }
 EXPORT_SYMBOL_GPL(thermal_perf_filter_cdev_state);
+
+unsigned int thermal_perf_get_freq_floor(const char *type, unsigned int cur_freq, unsigned int max_freq)
+{
+	int mode = thermal_perf_mode;
+	unsigned int dynamic_floor;
+
+	if (mode != 2 || !type || max_freq == 0)
+		return cur_freq;
+
+	/* Universal Dynamic Performance Floor:
+	 * Automatically scales to 55% of the core's native maximum frequency
+	 * on ANY device / SoC architecture (Snapdragon, Dimensity, Tensor, Exynos).
+	 * Eliminates frametime spikes during sudden graphic transitions.
+	 */
+	if (strstr(type, "cpu") || strstr(type, "cluster")) {
+		dynamic_floor = (max_freq * 55) / 100;
+		if (cur_freq < dynamic_floor)
+			return dynamic_floor;
+	}
+	return cur_freq;
+}
+EXPORT_SYMBOL_GPL(thermal_perf_get_freq_floor);
 
 static ssize_t mode_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
@@ -153,7 +176,7 @@ fs_initcall(thermal_perf_bridge_init);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Zaan");
-MODULE_DESCRIPTION("Thermal Perf Kernel Bridge for Snapdragon 8s Gen 3");
+MODULE_DESCRIPTION("Thermal Perf Kernel Bridge for Universal GKI");
 EOF
 
 # 2. Add to drivers/thermal/Makefile

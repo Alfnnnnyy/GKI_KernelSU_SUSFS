@@ -15,7 +15,7 @@ def patch_cpufreq_cooling(filepath):
         content = decl + content
 
     hook = "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);"
-    pattern = re.compile(r'(int\s+cpufreq_set_cur_state\s*\([^)]*\)\s*\{)')
+    pattern = re.compile(r'(cpufreq_set_cur_state[\s\S]*?\{)')
     match = pattern.search(content)
     if match and "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
         content = content[:match.end()] + hook + content[match.end():]
@@ -40,7 +40,7 @@ def patch_devfreq_cooling(filepath):
         content = decl + content
 
     hook = "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);"
-    pattern = re.compile(r'(int\s+devfreq_cooling_set_cur_state\s*\([^)]*\)\s*\{)')
+    pattern = re.compile(r'(devfreq_cooling_set_cur_state[\s\S]*?\{)')
     match = pattern.search(content)
     if match and "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
         content = content[:match.end()] + hook + content[match.end():]
@@ -65,8 +65,7 @@ def patch_thermal_sysfs(filepath):
         content = decl + content
 
     hook = "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);"
-    # Find cur_state_store and inject right after kstrtoul check
-    pattern = re.compile(r'(cur_state_store\s*\([^)]*\)\s*\{[\s\S]*?kstrtoul\s*\([^)]*\)[\s\S]*?;)')
+    pattern = re.compile(r'(cur_state_store[\s\S]*?\{[\s\S]*?kstrtoul[\s\S]*?;)')
     match = pattern.search(content)
     if match and "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
         content = content[:match.end()] + hook + content[match.end():]
@@ -76,8 +75,7 @@ def patch_thermal_sysfs(filepath):
     elif "thermal_perf_filter_cdev_state(cdev->type, &state)" in content:
         print("✓ thermal_sysfs.c already hooked")
     else:
-        # Fallback to function entry
-        fn_pattern = re.compile(r'(cur_state_store\s*\([^)]*\)\s*\{)')
+        fn_pattern = re.compile(r'(cur_state_store[\s\S]*?\{)')
         fn_match = fn_pattern.search(content)
         if fn_match and "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
             content = content[:fn_match.end()] + hook + content[fn_match.end():]
@@ -105,10 +103,9 @@ def patch_power_supply_sysfs(filepath):
 		}
 	}
 """
-    # Match power_supply_store_property function entry or after parsing
-    pattern = re.compile(r'(ssize_t\s+power_supply_store_property\s*\([^)]*\)\s*\{[\s\S]*?kstrtoint\s*\([^)]*\)[\s\S]*?;)')
+    pattern = re.compile(r'(power_supply_store_property[\s\S]*?\{[\s\S]*?kstrtoint[\s\S]*?;)')
     match = pattern.search(content)
-    if match and "thermal_perf_get_fastcharge" not in content[match.end():match.end()+200]:
+    if match and "thermal_perf_get_fastcharge" not in content[match.end():match.end()+250]:
         content = content[:match.end()] + hook_code + content[match.end():]
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
@@ -116,8 +113,7 @@ def patch_power_supply_sysfs(filepath):
     elif "POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT" in content and "thermal_perf_get_fastcharge" in content:
         print("✓ power_supply_sysfs.c already hooked")
     else:
-        # Secondary fallback: match function header
-        fn_pattern = re.compile(r'(ssize_t\s+power_supply_store_property\s*\([^)]*\)\s*\{)')
+        fn_pattern = re.compile(r'(power_supply_store_property[\s\S]*?\{)')
         fn_match = fn_pattern.search(content)
         if fn_match and "thermal_perf_get_fastcharge" not in content:
             content = content[:fn_match.end()] + hook_code + content[fn_match.end():]

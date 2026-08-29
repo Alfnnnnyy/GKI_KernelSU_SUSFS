@@ -92,16 +92,13 @@ static void thermal_perf_apply_kernel_mode(int mode)
 
 		if (policy->cpu == cpu) {
 			if (mode == 2) {
-				/* Game Mode: Restore policy max & user_policy max to hardware stock maximum */
-				policy->user_policy.max = policy->cpuinfo.max_freq;
+				/* Game Mode: Restore policy max to hardware stock maximum */
 				policy->max = policy->cpuinfo.max_freq;
 			} else if (mode == 0) {
 				/* Powersafe Mode: Cap maximum frequency to 70% of hardware max */
-				policy->user_policy.max = (policy->cpuinfo.max_freq * 70) / 100;
 				policy->max = (policy->cpuinfo.max_freq * 70) / 100;
 			} else {
 				/* Balance Mode: Restore stock */
-				policy->user_policy.max = policy->cpuinfo.max_freq;
 				policy->max = policy->cpuinfo.max_freq;
 			}
 			cpufreq_update_policy(cpu);

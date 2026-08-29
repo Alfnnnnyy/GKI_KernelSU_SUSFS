@@ -30,10 +30,10 @@ def inject_decl_and_hook(filepath, hook_decl, search_pattern, hook_code, label):
         return False
 
 def patch_cooling_framework(common_dir):
-    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\nextern unsigned int thermal_perf_get_freq_floor(const char *type, unsigned int cur_freq, unsigned int max_freq);"
+    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);"
     fc_decl = "extern int thermal_perf_get_fastcharge(void);\nextern int thermal_perf_get_mode(void);"
 
-    # 1. Hook cpufreq_cooling.c (State unthrottle + Game Mode frequency floor boost)
+    # 1. Hook cpufreq_cooling.c (Zero-Throttle CPU Frequency State Override)
     cpufreq_c = os.path.join(common_dir, "drivers/thermal/cpufreq_cooling.c")
     hook_cpufreq = "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n"
     inject_decl_and_hook(
@@ -41,20 +41,10 @@ def patch_cooling_framework(common_dir):
         decl,
         r'cpufreq_set_cur_state\s*\([^)]*\)\s*\{[^}]*?struct freq_qos_request\s*\*[a-zA-Z0-9_]+\s*=\s*&[a-zA-Z0-9_]+->qos_req;',
         hook_cpufreq,
-        "cpufreq_cooling.c (CPU Frequency Cooling State Override)"
+        "cpufreq_cooling.c (CPU Frequency Cooling Zero-Throttle Override)"
     )
 
-    # Inject floor boost right after target_freq calculation in cpufreq_cooling.c
-    hook_cpufreq_floor = "\ttarget_freq = thermal_perf_get_freq_floor(cdev->type, target_freq, cpufreq_cdev->freq_table[0].frequency);\n"
-    inject_decl_and_hook(
-        cpufreq_c,
-        decl,
-        r'target_freq\s*=\s*cpufreq_cdev->freq_table\[state\]\.frequency\s*;',
-        hook_cpufreq_floor,
-        "cpufreq_cooling.c (Game Mode Low-Latency Frequency Floor Boost)"
-    )
-
-    # 2. Hook devfreq_cooling.c (GPU Devfreq state override)
+    # 2. Hook devfreq_cooling.c (Zero-Throttle GPU Devfreq State Override)
     devfreq_c = os.path.join(common_dir, "drivers/thermal/devfreq_cooling.c")
     hook_devfreq = "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n"
     inject_decl_and_hook(
@@ -62,7 +52,7 @@ def patch_cooling_framework(common_dir):
         decl,
         r'devfreq_cooling_set_cur_state\s*\([^)]*\)\s*\{',
         hook_devfreq,
-        "devfreq_cooling.c (GPU Devfreq Cooling)"
+        "devfreq_cooling.c (GPU Devfreq Cooling Zero-Throttle Override)"
     )
 
     # 3. Hook thermal_sysfs.c (Intercepts userspace mi_thermald / sysfs writes)
@@ -76,17 +66,7 @@ def patch_cooling_framework(common_dir):
         "thermal_sysfs.c (Userspace Cooling Device Sysfs Write Hook)"
     )
 
-    # 4. Hook thermal_helpers.c (Intercepts in-kernel governor throttling calculations)
-    thermal_helpers_c = os.path.join(common_dir, "drivers/thermal/thermal_helpers.c")
-    inject_decl_and_hook(
-        thermal_helpers_c,
-        decl,
-        r'void\s+__thermal_cooling_device_update\s*\([^)]*\)\s*\{',
-        "\tthermal_perf_filter_cdev_state(cdev->type, &cdev->target);\n",
-        "thermal_helpers.c (__thermal_cooling_device_update)"
-    )
-
-    # 5. Hook power_supply_sysfs.c (Intercepts userspace PMIC charge_control_limit / FCC writes)
+    # 4. Hook power_supply_sysfs.c (Intercepts userspace PMIC charge_control_limit / FCC writes)
     power_sysfs_c = os.path.join(common_dir, "drivers/power/supply/power_supply_sysfs.c")
     hook_power = """\tif (thermal_perf_get_fastcharge() == 1 || thermal_perf_get_mode() == 2) {
 \t\tif (off == POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT) {

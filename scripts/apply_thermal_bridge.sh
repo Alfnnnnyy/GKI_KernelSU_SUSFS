@@ -21,8 +21,7 @@ cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 /*
  * thermal_perf_bridge.c - Kernel-space Dynamic Thermal & Performance Bridge
  * Allows mountless dynamic switching: Powersafe (0), Balance (1), Game (2),
- * 90W Extreme HyperCharge bypass, and Universal CPU/GPU Game Floor Boost.
- * 100% Universal across ANY Android GKI device.
+ * and 90W Extreme HyperCharge thermal limit bypass.
  */
 
 #include <linux/module.h>
@@ -72,42 +71,12 @@ void thermal_perf_filter_cdev_state(const char *type, unsigned long *state)
 		    strstr(type, "kgsl") || strstr(type, "ddr") || 
 		    strstr(type, "cluster") || strstr(type, "pause") || 
 		    strstr(type, "hotplug") || strstr(type, "cdev")) {
-			*state = 0; /* Force State 0: 100% Zero Throttle, Max Freq */
+			*state = 0; /* Force State 0: 100% Zero Throttle, Max Clock (3.01 GHz) */
 			return;
-		}
-	}
-
-	/* 3. Powersafe Mode: Enforce energy saving cooling states */
-	if (mode == 0) {
-		if (strstr(type, "cpu") || strstr(type, "gpu") || strstr(type, "kgsl")) {
-			if (*state < 2)
-				*state = 2; /* Enforce Minimum Cooling State 2 */
 		}
 	}
 }
 EXPORT_SYMBOL_GPL(thermal_perf_filter_cdev_state);
-
-unsigned int thermal_perf_get_freq_floor(const char *type, unsigned int cur_freq, unsigned int max_freq)
-{
-	int mode = thermal_perf_mode;
-	unsigned int dynamic_floor;
-
-	if (mode != 2 || !type || max_freq == 0)
-		return cur_freq;
-
-	/* Universal Dynamic Performance Floor:
-	 * Automatically scales to 55% of the core's native maximum frequency
-	 * on ANY device / SoC architecture (Snapdragon, Dimensity, Tensor, Exynos).
-	 * Eliminates frametime spikes during sudden graphic transitions.
-	 */
-	if (strstr(type, "cpu") || strstr(type, "cluster")) {
-		dynamic_floor = (max_freq * 55) / 100;
-		if (cur_freq < dynamic_floor)
-			return dynamic_floor;
-	}
-	return cur_freq;
-}
-EXPORT_SYMBOL_GPL(thermal_perf_get_freq_floor);
 
 static ssize_t mode_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {

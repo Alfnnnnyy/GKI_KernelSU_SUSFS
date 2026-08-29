@@ -154,10 +154,8 @@ def patch_cpufreq_core(filepath):
 \t\tint tp_mode = thermal_perf_get_mode();
 \t\tif (tp_mode == 2) {{
 \t\t\tnew_policy{dot_or_arrow}max = policy->cpuinfo.max_freq;
-\t\t\tnew_policy{dot_or_arrow}user_policy.max = policy->cpuinfo.max_freq;
 \t\t}} else if (tp_mode == 0) {{
 \t\t\tnew_policy{dot_or_arrow}max = (policy->cpuinfo.max_freq * 70) / 100;
-\t\t\tnew_policy{dot_or_arrow}user_policy.max = (policy->cpuinfo.max_freq * 70) / 100;
 \t\t}}
 \t}}
 """

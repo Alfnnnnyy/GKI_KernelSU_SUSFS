@@ -3,85 +3,133 @@ import os
 import re
 import sys
 
-def inject_decl_and_hook(filepath, hook_decl, search_pattern, hook_code, label):
+def patch_cpufreq_cooling(filepath):
     if not os.path.exists(filepath):
-        print(f"::warning::{filepath} not found (skipped {label})")
-        return False
-
+        print(f"::warning::{filepath} not found")
+        return
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
 
-    if hook_decl not in content:
-        content = f"{hook_decl}\n" + content
+    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\n"
+    if "thermal_perf_filter_cdev_state" not in content:
+        content = decl + content
 
-    if hook_code.strip() in content:
-        print(f"✓ {label} already hooked")
-        return True
-
-    match = re.search(search_pattern, content)
-    if match:
-        content = content[:match.end()] + "\n" + hook_code + content[match.end():]
+    hook = "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);"
+    pattern = re.compile(r'(int\s+cpufreq_set_cur_state\s*\([^)]*\)\s*\{)')
+    match = pattern.search(content)
+    if match and "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
+        content = content[:match.end()] + hook + content[match.end():]
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-        print(f"✓ Hooked {label}")
-        return True
+        print("✓ Hooked cpufreq_cooling.c (CPU Frequency Cooling Zero-Throttle Override)")
+    elif "thermal_perf_filter_cdev_state(cdev->type, &state)" in content:
+        print("✓ cpufreq_cooling.c already hooked")
     else:
-        print(f"::warning::Could not match pattern for {label} in {filepath}")
-        return False
+        print(f"::error::Could not find cpufreq_set_cur_state in {filepath}")
+        sys.exit(1)
 
-def patch_cooling_framework(common_dir):
-    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);"
-    fc_decl = "extern int thermal_perf_get_fastcharge(void);\nextern int thermal_perf_get_mode(void);"
+def patch_devfreq_cooling(filepath):
+    if not os.path.exists(filepath):
+        print(f"::warning::{filepath} not found")
+        return
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
 
-    # 1. Hook cpufreq_cooling.c (Zero-Throttle CPU Frequency State Override)
-    cpufreq_c = os.path.join(common_dir, "drivers/thermal/cpufreq_cooling.c")
-    hook_cpufreq = "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n"
-    inject_decl_and_hook(
-        cpufreq_c,
-        decl,
-        r'cpufreq_set_cur_state\s*\([^)]*\)\s*\{[^}]*?struct freq_qos_request\s*\*[a-zA-Z0-9_]+\s*=\s*&[a-zA-Z0-9_]+->qos_req;',
-        hook_cpufreq,
-        "cpufreq_cooling.c (CPU Frequency Cooling Zero-Throttle Override)"
-    )
+    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\n"
+    if "thermal_perf_filter_cdev_state" not in content:
+        content = decl + content
 
-    # 2. Hook devfreq_cooling.c (Zero-Throttle GPU Devfreq State Override)
-    devfreq_c = os.path.join(common_dir, "drivers/thermal/devfreq_cooling.c")
-    hook_devfreq = "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n"
-    inject_decl_and_hook(
-        devfreq_c,
-        decl,
-        r'devfreq_cooling_set_cur_state\s*\([^)]*\)\s*\{',
-        hook_devfreq,
-        "devfreq_cooling.c (GPU Devfreq Cooling Zero-Throttle Override)"
-    )
+    hook = "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);"
+    pattern = re.compile(r'(int\s+devfreq_cooling_set_cur_state\s*\([^)]*\)\s*\{)')
+    match = pattern.search(content)
+    if match and "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
+        content = content[:match.end()] + hook + content[match.end():]
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("✓ Hooked devfreq_cooling.c (GPU Devfreq Cooling Zero-Throttle Override)")
+    elif "thermal_perf_filter_cdev_state(cdev->type, &state)" in content:
+        print("✓ devfreq_cooling.c already hooked")
+    else:
+        print(f"::error::Could not find devfreq_cooling_set_cur_state in {filepath}")
+        sys.exit(1)
 
-    # 3. Hook thermal_sysfs.c (Intercepts userspace mi_thermald / sysfs writes)
-    thermal_sysfs_c = os.path.join(common_dir, "drivers/thermal/thermal_sysfs.c")
-    hook_sysfs = "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n"
-    inject_decl_and_hook(
-        thermal_sysfs_c,
-        decl,
-        r'cur_state_store\s*\([^)]*\)\s*\{[^}]*?if\s*\(\s*kstrtoul\s*\([^)]*\)\s*<[^)]*\)\s*return\s*-EINVAL\s*;',
-        hook_sysfs,
-        "thermal_sysfs.c (Userspace Cooling Device Sysfs Write Hook)"
-    )
+def patch_thermal_sysfs(filepath):
+    if not os.path.exists(filepath):
+        print(f"::warning::{filepath} not found")
+        return
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
 
-    # 4. Hook power_supply_sysfs.c (Intercepts userspace PMIC charge_control_limit / FCC writes)
-    power_sysfs_c = os.path.join(common_dir, "drivers/power/supply/power_supply_sysfs.c")
-    hook_power = """\tif (thermal_perf_get_fastcharge() == 1 || thermal_perf_get_mode() == 2) {
-\t\tif (off == POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT) {
-\t\t\tvalue.intval = 0;
-\t\t}
-\t}
+    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\n"
+    if "thermal_perf_filter_cdev_state" not in content:
+        content = decl + content
+
+    hook = "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);"
+    # Find cur_state_store and inject right after kstrtoul check
+    pattern = re.compile(r'(cur_state_store\s*\([^)]*\)\s*\{[\s\S]*?kstrtoul\s*\([^)]*\)[\s\S]*?;)')
+    match = pattern.search(content)
+    if match and "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
+        content = content[:match.end()] + hook + content[match.end():]
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("✓ Hooked thermal_sysfs.c (Userspace Cooling Device Sysfs Write Hook)")
+    elif "thermal_perf_filter_cdev_state(cdev->type, &state)" in content:
+        print("✓ thermal_sysfs.c already hooked")
+    else:
+        # Fallback to function entry
+        fn_pattern = re.compile(r'(cur_state_store\s*\([^)]*\)\s*\{)')
+        fn_match = fn_pattern.search(content)
+        if fn_match and "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
+            content = content[:fn_match.end()] + hook + content[fn_match.end():]
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("✓ Hooked thermal_sysfs.c (Entry Hook)")
+        else:
+            print(f"::warning::Could not match cur_state_store in {filepath}")
+
+def patch_power_supply_sysfs(filepath):
+    if not os.path.exists(filepath):
+        print(f"::warning::{filepath} not found")
+        return
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+    fc_decl = "extern int thermal_perf_get_fastcharge(void);\nextern int thermal_perf_get_mode(void);\n"
+    if "thermal_perf_get_fastcharge" not in content:
+        content = fc_decl + content
+
+    hook_code = """
+	if (thermal_perf_get_fastcharge() == 1 || thermal_perf_get_mode() == 2) {
+		if (off == POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT) {
+			value.intval = 0;
+		}
+	}
 """
-    inject_decl_and_hook(
-        power_sysfs_c,
-        fc_decl,
-        r'static\s+ssize_t\s+power_supply_store_property\s*\([^)]*\)\s*\{[^}]*?ret\s*=\s*kstrtoint\s*\([^)]*\)\s*;\s*if\s*\(ret\)\s*return\s*ret\s*;',
-        hook_power,
-        "power_supply_sysfs.c (PMIC Charge Control Limit Bypass Hook)"
-    )
+    # Match power_supply_store_property function entry or after parsing
+    pattern = re.compile(r'(ssize_t\s+power_supply_store_property\s*\([^)]*\)\s*\{[\s\S]*?kstrtoint\s*\([^)]*\)[\s\S]*?;)')
+    match = pattern.search(content)
+    if match and "thermal_perf_get_fastcharge" not in content[match.end():match.end()+200]:
+        content = content[:match.end()] + hook_code + content[match.end():]
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("✓ Hooked power_supply_sysfs.c (PMIC Charge Control Limit Bypass Hook)")
+    elif "POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT" in content and "thermal_perf_get_fastcharge" in content:
+        print("✓ power_supply_sysfs.c already hooked")
+    else:
+        # Secondary fallback: match function header
+        fn_pattern = re.compile(r'(ssize_t\s+power_supply_store_property\s*\([^)]*\)\s*\{)')
+        fn_match = fn_pattern.search(content)
+        if fn_match and "thermal_perf_get_fastcharge" not in content:
+            content = content[:fn_match.end()] + hook_code + content[fn_match.end():]
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("✓ Hooked power_supply_sysfs.c (Header Hook)")
+        else:
+            print(f"::warning::Could not match power_supply_store_property in {filepath}")
 
 if __name__ == "__main__":
     common_dir = sys.argv[1] if len(sys.argv) > 1 else "."
-    patch_cooling_framework(common_dir)
+    patch_cpufreq_cooling(os.path.join(common_dir, "drivers/thermal/cpufreq_cooling.c"))
+    patch_devfreq_cooling(os.path.join(common_dir, "drivers/thermal/devfreq_cooling.c"))
+    patch_thermal_sysfs(os.path.join(common_dir, "drivers/thermal/thermal_sysfs.c"))
+    patch_power_supply_sysfs(os.path.join(common_dir, "drivers/power/supply/power_supply_sysfs.c"))

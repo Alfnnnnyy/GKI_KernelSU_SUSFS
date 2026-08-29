@@ -19,9 +19,9 @@ cd "$COMMON_DIR"
 cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 // SPDX-License-Identifier: GPL-2.0
 /*
- * thermal_perf_bridge.c - Kernel-space Dynamic Thermal & Performance Bridge
- * Allows mountless dynamic switching: Powersafe (0), Balance (1), Game (2),
- * and 90W Extreme HyperCharge thermal limit bypass.
+ * thermal_perf_bridge.c - Pure Ring-0 Kernel Actuator & Performance Bridge
+ * 100% Stealth & Mountless: Handles CPU Policy Caps, Cooling Interception,
+ * and 90W Fast Charging directly in-memory without userspace sysfs tampering.
  */
 
 #include <linux/module.h>
@@ -31,6 +31,7 @@ cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 #include <linux/sysfs.h>
 #include <linux/thermal.h>
 #include <linux/string.h>
+#include <linux/cpufreq.h>
 
 static int thermal_perf_mode = 1;       /* Default: 1 (Balance) */
 static int thermal_perf_fastcharge = 0; /* Default: 0 (Normal charging) */
@@ -78,6 +79,37 @@ void thermal_perf_filter_cdev_state(const char *type, unsigned long *state)
 }
 EXPORT_SYMBOL_GPL(thermal_perf_filter_cdev_state);
 
+static void thermal_perf_apply_kernel_mode(int mode)
+{
+	int cpu;
+	struct cpufreq_policy *policy;
+
+	for_each_possible_cpu(cpu) {
+		policy = cpufreq_cpu_get(cpu);
+		if (!policy)
+			continue;
+
+		if (policy->cpu == cpu) {
+			if (mode == 2) {
+				/* Game Mode: Restore policy max to hardware stock maximum */
+				policy->user_policy.max = policy->cpuinfo.max_freq;
+				policy->max = policy->cpuinfo.max_freq;
+			} else if (mode == 0) {
+				/* Powersafe Mode: Cap maximum frequency to 70% of hardware max */
+				unsigned int eco_max = (policy->cpuinfo.max_freq * 70) / 100;
+				policy->user_policy.max = eco_max;
+				policy->max = eco_max;
+			} else {
+				/* Balance Mode: Restore stock */
+				policy->user_policy.max = policy->cpuinfo.max_freq;
+				policy->max = policy->cpuinfo.max_freq;
+			}
+			cpufreq_update_policy(cpu);
+		}
+		cpufreq_cpu_put(policy);
+	}
+}
+
 static ssize_t mode_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", thermal_perf_mode);
@@ -89,7 +121,8 @@ static ssize_t mode_store(struct kobject *kobj, struct kobj_attribute *attr, con
 	if (kstrtoint(buf, 10, &val) < 0 || val < 0 || val > 2)
 		return -EINVAL;
 	thermal_perf_mode = val;
-	pr_info("ThermalPerf: mode set to %d\n", val);
+	thermal_perf_apply_kernel_mode(val);
+	pr_info("ThermalPerf: Ring-0 mode set to %d\n", val);
 	return count;
 }
 
@@ -104,7 +137,7 @@ static ssize_t fastcharge_store(struct kobject *kobj, struct kobj_attribute *att
 	if (kstrtoint(buf, 10, &val) < 0 || (val != 0 && val != 1))
 		return -EINVAL;
 	thermal_perf_fastcharge = val;
-	pr_info("ThermalPerf: 90W fastcharge set to %d\n", val);
+	pr_info("ThermalPerf: Ring-0 90W fastcharge set to %d\n", val);
 	return count;
 }
 
@@ -137,7 +170,7 @@ static int __init thermal_perf_bridge_init(void)
 		return ret;
 	}
 
-	pr_info("ThermalPerf: Kernel Bridge initialized (/sys/kernel/thermal_perf/{mode,fastcharge})\n");
+	pr_info("ThermalPerf: Ring-0 Kernel Bridge initialized (/sys/kernel/thermal_perf/{mode,fastcharge})\n");
 	return 0;
 }
 
@@ -145,7 +178,7 @@ fs_initcall(thermal_perf_bridge_init);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Zaan");
-MODULE_DESCRIPTION("Thermal Perf Kernel Bridge for Universal GKI");
+MODULE_DESCRIPTION("Thermal Perf Pure Ring-0 Kernel Actuator");
 EOF
 
 # 2. Add to drivers/thermal/Makefile

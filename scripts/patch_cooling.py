@@ -17,16 +17,29 @@ def patch_cpufreq_cooling(filepath):
         print("✓ cpufreq_cooling.c already hooked")
         return
 
-    needle = "target_freq = cpufreq_cdev->freq_table[state].frequency"
-    if needle in content:
-        idx = content.find(needle)
+    # Linux 6.1+ pattern
+    needle_6_1 = "if (state > cpufreq_cdev->max_level)"
+    if needle_6_1 in content:
+        idx = content.find(needle_6_1)
+        line_start = content.rfind("\n", 0, idx) + 1
+        content = content[:line_start] + "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n\n" + content[line_start:]
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("✓ Hooked cpufreq_cooling.c (Linux 6.1 Function Hook)")
+        return
+
+    # Fallback pattern
+    needle_old = "target_freq = cpufreq_cdev->freq_table[state].frequency"
+    if needle_old in content:
+        idx = content.find(needle_old)
         line_start = content.rfind("\n", 0, idx) + 1
         content = content[:line_start] + "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n" + content[line_start:]
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-        print("✓ Hooked cpufreq_cooling.c (Function Entry Hook)")
-    else:
-        print(f"::warning::Could not match {needle} in {filepath}")
+        print("✓ Hooked cpufreq_cooling.c (Legacy Function Hook)")
+        return
+
+    print(f"::warning::Could not match cpufreq_cooling hook point in {filepath}")
 
 def patch_devfreq_cooling(filepath):
     if not os.path.exists(filepath):
@@ -39,20 +52,33 @@ def patch_devfreq_cooling(filepath):
     if "thermal_perf_filter_cdev_state" not in content:
         content = decl + content
 
-    if "thermal_perf_filter_cdev_state(dfc->cdev->type, &state)" in content:
+    if "thermal_perf_filter_cdev_state(cdev->type, &state)" in content:
         print("✓ devfreq_cooling.c already hooked")
         return
 
-    needle = "freq = dfc->freq_table[state]"
-    if needle in content:
-        idx = content.find(needle)
+    # Linux 6.1+ pattern
+    needle_6_1 = "if (state == dfc->cooling_state)"
+    if needle_6_1 in content:
+        idx = content.find(needle_6_1)
         line_start = content.rfind("\n", 0, idx) + 1
-        content = content[:line_start] + "\tthermal_perf_filter_cdev_state(dfc->cdev->type, &state);\n" + content[line_start:]
+        content = content[:line_start] + "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n\n" + content[line_start:]
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-        print("✓ Hooked devfreq_cooling.c (GPU Devfreq Cooling Zero-Throttle Override)")
-    else:
-        print(f"::warning::Could not match {needle} in {filepath}")
+        print("✓ Hooked devfreq_cooling.c (Linux 6.1 GPU Devfreq Hook)")
+        return
+
+    # Fallback pattern
+    needle_old = "freq = dfc->freq_table[state]"
+    if needle_old in content:
+        idx = content.find(needle_old)
+        line_start = content.rfind("\n", 0, idx) + 1
+        content = content[:line_start] + "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n" + content[line_start:]
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("✓ Hooked devfreq_cooling.c (Legacy GPU Devfreq Hook)")
+        return
+
+    print(f"::warning::Could not match devfreq_cooling hook point in {filepath}")
 
 def patch_thermal_sysfs(filepath):
     if not os.path.exists(filepath):
@@ -71,18 +97,18 @@ def patch_thermal_sysfs(filepath):
 
     fn_needle = "cur_state_store"
     if fn_needle in content:
-        idx = content.find(fn_needle)
-        kstrtoul_needle = "kstrtoul"
-        kstr_idx = content.find(kstrtoul_needle, idx)
-        if kstr_idx != -1:
-            semi_idx = content.find(";", kstr_idx)
-            if_idx = content.find("if (", semi_idx)
-            if_end_idx = content.find("\n", if_idx)
-            content = content[:if_end_idx+1] + "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n" + content[if_end_idx+1:]
+        fn_idx = content.find(fn_needle)
+        # Match mutex_lock in cur_state_store
+        mutex_needle = "mutex_lock(&cdev->lock);"
+        m_idx = content.find(mutex_needle, fn_idx)
+        if m_idx != -1:
+            semi_idx = m_idx + len(mutex_needle)
+            content = content[:semi_idx] + "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);" + content[semi_idx:]
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
             print("✓ Hooked thermal_sysfs.c (Userspace Cooling Device Sysfs Write Hook)")
             return
+
     print(f"::warning::Could not match cur_state_store in {filepath}")
 
 def patch_power_supply_core(filepath):
@@ -112,8 +138,9 @@ def patch_power_supply_core(filepath):
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
         print("✓ Hooked power_supply_core.c (Universal PMIC Charge Control Limit Bypass Hook)")
-    else:
-        print(f"::warning::Could not match power_supply_set_property in {filepath}")
+        return
+
+    print(f"::warning::Could not match power_supply_set_property in {filepath}")
 
 def patch_cpufreq_core(filepath):
     if not os.path.exists(filepath):
@@ -175,6 +202,7 @@ def patch_cpufreq_core(filepath):
                 f.write(content)
             print("✓ Hooked cpufreq.c (cpufreq_set_policy CPUFREQ_ADJUST Override)")
             return
+
     print(f"::warning::Could not match cpufreq_set_policy in {filepath}")
 
 if __name__ == "__main__":

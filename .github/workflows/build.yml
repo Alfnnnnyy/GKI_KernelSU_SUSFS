@@ -910,16 +910,6 @@ jobs:
         run: |
           set -e
           echo "Integrating Re-Kernel..."
-
-          CURRENT_SUB="${{ inputs.sub_level }}"
-          if [[ ! "$CURRENT_SUB" =~ ^[0-9]+$ ]]; then
-            CURRENT_SUB=99999
-          fi
-          if [ "${{ inputs.kernel_version }}" = "5.15" ] && [ "$CURRENT_SUB" -lt 74 ]; then
-            echo "::warning::Re-Kernel 需要 5.15.74+ Android Binder Vendor Hooks 支持，当前版本 5.15.${CURRENT_SUB} 自动跳过 Re-Kernel 集成以避免编译失败。"
-            exit 0
-          fi
-
           TMP_REKERNEL=/tmp/rekernel
           rm -rf "$TMP_REKERNEL"
           git clone --depth 1 https://github.com/Sakion-Team/Re-Kernel.git "$TMP_REKERNEL"
@@ -949,6 +939,15 @@ jobs:
           # 补齐 5.10 binder_internal.h 使用 DEFINE_SHOW_ATTRIBUTE 所需的定义
           grep -qF '#include <linux/seq_file.h>' common/drivers/rekernel/rekernel_binder.c || \
             sed -i '/#include <linux\/kprobes.h>/a #include <linux/seq_file.h>' common/drivers/rekernel/rekernel_binder.c
+
+          # 补齐旧版 5.15 (5.15.41 等) trace/hooks 缺少 unregister_trace_android_vh_binder_* 的定义
+          sed -i '1i #ifndef unregister_trace_android_vh_binder_alloc_new_buf_locked\n#define unregister_trace_android_vh_binder_alloc_new_buf_locked(a, b) do {} while(0)\n#endif' common/drivers/rekernel/rekernel_binder.c
+          sed -i '1i #ifndef unregister_trace_android_vh_binder_preset\n#define unregister_trace_android_vh_binder_preset(a, b) do {} while(0)\n#endif' common/drivers/rekernel/rekernel_binder.c
+          sed -i '1i #ifndef unregister_trace_android_vh_binder_reply\n#define unregister_trace_android_vh_binder_reply(a, b) do {} while(0)\n#endif' common/drivers/rekernel/rekernel_binder.c
+          sed -i '1i #ifndef unregister_trace_android_vh_binder_trans\n#define unregister_trace_android_vh_binder_trans(a, b) do {} while(0)\n#endif' common/drivers/rekernel/rekernel_binder.c
+          sed -i '1i #pragma clang diagnostic ignored "-Wimplicit-function-declaration"' common/drivers/rekernel/rekernel_binder.c
+          sed -i '1i #pragma GCC diagnostic ignored "-Wimplicit-function-declaration"' common/drivers/rekernel/rekernel_binder.c
+          echo "✓ 注入 Re-Kernel Binder Vendor Hooks 兼容性补丁"
 
           # 配置 defconfig（幂等）
           grep -q '^CONFIG_REKERNEL=y$' "$DEFCONFIG" || echo "CONFIG_REKERNEL=y" >> "$DEFCONFIG"

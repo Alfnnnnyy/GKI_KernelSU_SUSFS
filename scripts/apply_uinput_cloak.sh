@@ -14,10 +14,9 @@ import os, re
 
 common_dir = "$COMMON_DIR"
 input_c = os.path.join(common_dir, "drivers/input/input.c")
-evdev_c = os.path.join(common_dir, "drivers/input/evdev.c")
 uinput_c = os.path.join(common_dir, "drivers/input/misc/uinput.c")
 
-# 1. drivers/input/input.c
+# 1. drivers/input/input.c (input core device registration and sysfs name)
 if os.path.exists(input_c):
     with open(input_c, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
@@ -46,24 +45,7 @@ if os.path.exists(input_c):
     with open(input_c, "w", encoding="utf-8") as f:
         f.write(content)
 
-# 2. drivers/input/evdev.c (ioctl EVIOCGNAME for Android EventHub / ACE Detector)
-if os.path.exists(evdev_c):
-    with open(evdev_c, "r", encoding="utf-8", errors="ignore") as f:
-        e_content = f.read()
-    
-    if "case EVIOCGNAME(" in e_content and "xiaomi-touchkey" not in e_content:
-        # Standard GKI str_to_user pattern
-        e_pattern = re.compile(r'(case\s+EVIOCGNAME\([^)]+\):[^{}]*?)(return\s+str_to_user\s*\(\s*dev->name\s*,)', re.DOTALL)
-        if e_pattern.search(e_content):
-            e_content = e_pattern.sub(r'''\1const char *ev_name = (dev->name && !strcmp(dev->name, "uinput-xiaomi")) ? "xiaomi-touchkey" : dev->name;\n\t\treturn str_to_user(ev_name,''', e_content, count=1)
-            print("✓ Hooked ioctl EVIOCGNAME (str_to_user) in drivers/input/evdev.c")
-        else:
-            print("::info::drivers/input/evdev.c uses standard dev->name binding (covered by input_register_device)")
-        
-        with open(evdev_c, "w", encoding="utf-8") as f:
-            f.write(e_content)
-
-# 3. drivers/input/misc/uinput.c
+# 2. drivers/input/misc/uinput.c
 if os.path.exists(uinput_c):
     with open(uinput_c, "r", encoding="utf-8", errors="ignore") as f:
         u_content = f.read()

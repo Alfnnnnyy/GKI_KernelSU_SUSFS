@@ -15,8 +15,15 @@ echo "Kernel Root: $COMMON_DIR"
 
 cd "$COMMON_DIR"
 
+# Compute dynamic version
+GIT_SHA="${GITHUB_SHA:0:7}"
+[ -z "$GIT_SHA" ] && GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
+RUN_NUM="${GITHUB_RUN_NUMBER:-custom}"
+TP_VERSION="${THERMAL_PERF_VERSION:-2.5.2-r${RUN_NUM}-${GIT_SHA}}"
+echo "Kernel Bridge Version: $TP_VERSION"
+
 # 1. Create drivers/thermal/thermal_perf_bridge.c
-cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
+cat << EOF > drivers/thermal/thermal_perf_bridge.c
 // SPDX-License-Identifier: GPL-2.0
 /*
  * thermal_perf_bridge.c - Pure Ring-0 Kernel Actuator & Performance Bridge
@@ -33,7 +40,7 @@ cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 #include <linux/string.h>
 #include <linux/cpufreq.h>
 
-#define THERMAL_PERF_VERSION "2.5.0-ring0-cpufreq"
+#define THERMAL_PERF_VERSION "${TP_VERSION}"
 
 static int thermal_perf_mode = 1;       /* Default: 1 (Balance) */
 static int thermal_perf_fastcharge = 0; /* Default: 0 (Normal charging) */
@@ -202,7 +209,7 @@ if ! grep -q "thermal_perf_bridge.o" drivers/thermal/Makefile; then
   echo "✓ Added thermal_perf_bridge.o to drivers/thermal/Makefile"
 fi
 
-# 3. Hook thermal cooling devices & PMIC power supply using patch_cooling.py
+# 3. Hook thermal cooling devices & cpufreq core using patch_cooling.py
 python3 "$GITHUB_WORKSPACE/scripts/patch_cooling.py" "$COMMON_DIR"
 
 echo "✓ Thermal Perf Kernel Bridge successfully integrated into kernel source!"

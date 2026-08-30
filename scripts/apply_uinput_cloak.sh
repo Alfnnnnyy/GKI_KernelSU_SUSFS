@@ -21,15 +21,22 @@ if os.path.exists(input_c):
     with open(input_c, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
     
-    # Hook input_register_device at the very beginning of the function
-    reg_pattern = re.compile(r'(int\s+(?:__must_check\s+)?input_register_device\s*\(\s*struct\s+input_dev\s*\*\s*dev\s*\)\s*\{[\r\n]+)')
-    if reg_pattern.search(content) and "dev->name = \"xiaomi-touchkey\"" not in content:
+    # Hook input_register_device after local variable declarations (C90 compliance)
+    if "if (dev->dev.parent)" in content and "dev->name = \"xiaomi-touchkey\"" not in content:
+        content = content.replace(
+            "if (dev->dev.parent)",
+            "if (dev && dev->name && !strcmp(dev->name, \"uinput-xiaomi\")) {\n\t\tdev->name = \"xiaomi-touchkey\";\n\t}\n\n\tif (dev->dev.parent)",
+            1
+        )
+        print("✓ Hooked input_register_device (C90 safe) in drivers/input/input.c")
+    elif "dev->name = \"xiaomi-touchkey\"" not in content:
+        reg_pattern = re.compile(r'(int\s+(?:__must_check\s+)?input_register_device\s*\(\s*struct\s+input_dev\s*\*\s*dev\s*\)\s*\{[\r\n]+)')
         content = reg_pattern.sub(r'''\1	if (dev && dev->name && !strcmp(dev->name, "uinput-xiaomi")) {
 		dev->name = "xiaomi-touchkey";
 	}
 ''', content, count=1)
-        print("✓ Hooked input_register_device in drivers/input/input.c")
-    
+        print("✓ Hooked input_register_device fallback in drivers/input/input.c")
+
     # Hook input_dev_show_name (sysfs /sys/class/input/inputX/name)
     if "input_dev_show_name" in content and "dname = \"xiaomi-touchkey\"" not in content:
         content = content.replace(

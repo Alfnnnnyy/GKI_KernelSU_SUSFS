@@ -20,12 +20,11 @@ if os.path.exists(input_c):
     with open(input_c, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
     
-    target = "int input_register_device(struct input_dev *dev)\n{"
-    replacement = '''int input_register_device(struct input_dev *dev)
-{
-	if (dev->name && !strcmp(dev->name, "uinput-xiaomi")) {
+    target = "if (test_bit(EV_REP, dev->evbit)"
+    replacement = '''if (dev->name && !strcmp(dev->name, "uinput-xiaomi")) {
 		dev->name = "xiaomi-touchkey";
-	}'''
+	}
+	if (test_bit(EV_REP, dev->evbit)'''
     if target in content and "xiaomi-touchkey" not in content:
         content = content.replace(target, replacement, 1)
         with open(input_c, "w", encoding="utf-8") as f:
@@ -34,7 +33,7 @@ if os.path.exists(input_c):
     elif "xiaomi-touchkey" in content:
         print("✓ input.c already cloaked")
     else:
-        print("::warning::input_register_device signature not found in input.c")
+        print("::warning::input_register_device target not found in input.c")
 
 if os.path.exists(uinput_c):
     with open(uinput_c, "r", encoding="utf-8", errors="ignore") as f:

@@ -25,7 +25,7 @@ def patch_cpufreq_cooling(filepath):
         content = content[:line_start] + "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n\n" + content[line_start:]
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-        print("✓ Hooked cpufreq_cooling.c (Linux 6.1 Function Hook)")
+        print("✓ Hooked cpufreq_cooling.c (Universal CPU Cooling Hook)")
         return
 
     # Fallback pattern
@@ -64,7 +64,7 @@ def patch_devfreq_cooling(filepath):
         content = content[:line_start] + "\tthermal_perf_filter_cdev_state(cdev->type, &state);\n\n" + content[line_start:]
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-        print("✓ Hooked devfreq_cooling.c (Linux 6.1 GPU Devfreq Hook)")
+        print("✓ Hooked devfreq_cooling.c (Universal GPU Devfreq Hook)")
         return
 
     # Fallback pattern

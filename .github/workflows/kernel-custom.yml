@@ -607,7 +607,7 @@ jobs:
 
           # Mount Method
           if [ "${{ inputs.build_nomount }}" = "true" ]; then
-            echo "MOUNT_TYPE=ZeroMount (Driver & Metamodule)" >> $GITHUB_ENV
+            echo "MOUNT_TYPE=VFS(ZeroMount)" >> $GITHUB_ENV
           elif [ "${{ inputs.kernelsu_variant }}" = "Official" ]; then
             echo "MOUNT_TYPE=OVERLAYFS" >> $GITHUB_ENV
           else

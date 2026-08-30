@@ -43,8 +43,7 @@ cat << EOF > drivers/thermal/thermal_perf_bridge.c
 #define THERMAL_PERF_VERSION "${TP_VERSION}"
 
 static int thermal_perf_mode = 1;       /* Default: 1 (Balance) */
-static int thermal_perf_fastcharge = 0; /* Default: 0 (Normal charging) */
-
+static int thermal_perf_fastcharge = 1; /* Default: 1 (Always Fast Charging / No Throttle) */
 const char *thermal_perf_get_version(void)
 {
 	return THERMAL_PERF_VERSION;

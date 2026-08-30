@@ -910,6 +910,16 @@ jobs:
         run: |
           set -e
           echo "Integrating Re-Kernel..."
+
+          CURRENT_SUB="${{ inputs.sub_level }}"
+          if [[ ! "$CURRENT_SUB" =~ ^[0-9]+$ ]]; then
+            CURRENT_SUB=99999
+          fi
+          if [ "${{ inputs.kernel_version }}" = "5.15" ] && [ "$CURRENT_SUB" -lt 74 ]; then
+            echo "::warning::Re-Kernel 需要 5.15.74+ Android Binder Vendor Hooks 支持，当前版本 5.15.${CURRENT_SUB} 自动跳过 Re-Kernel 集成以避免编译失败。"
+            exit 0
+          fi
+
           TMP_REKERNEL=/tmp/rekernel
           rm -rf "$TMP_REKERNEL"
           git clone --depth 1 https://github.com/Sakion-Team/Re-Kernel.git "$TMP_REKERNEL"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Apply Stealth Thermal Perf Kernel Bridge
-# Adds /sys/kernel/thermal_perf/mode & /sys/kernel/thermal_perf/fastcharge
+# Adds /sys/kernel/thermal_perf/{mode,fastcharge,version}
 # 100% Mountless & Zero-Detection by Anti-Cheat (ACE / Momo / Hunter)
 
 set -eo pipefail
@@ -33,8 +33,16 @@ cat << 'EOF' > drivers/thermal/thermal_perf_bridge.c
 #include <linux/string.h>
 #include <linux/cpufreq.h>
 
+#define THERMAL_PERF_VERSION "2.5.0-ring0-cpufreq"
+
 static int thermal_perf_mode = 1;       /* Default: 1 (Balance) */
 static int thermal_perf_fastcharge = 0; /* Default: 0 (Normal charging) */
+
+const char *thermal_perf_get_version(void)
+{
+	return THERMAL_PERF_VERSION;
+}
+EXPORT_SYMBOL_GPL(thermal_perf_get_version);
 
 int thermal_perf_get_mode(void)
 {
@@ -138,12 +146,19 @@ static ssize_t fastcharge_store(struct kobject *kobj, struct kobj_attribute *att
 	return count;
 }
 
+static ssize_t version_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n", THERMAL_PERF_VERSION);
+}
+
 static struct kobj_attribute mode_attribute = __ATTR(mode, 0644, mode_show, mode_store);
 static struct kobj_attribute fastcharge_attribute = __ATTR(fastcharge, 0644, fastcharge_show, fastcharge_store);
+static struct kobj_attribute version_attribute = __ATTR_RO(version);
 
 static struct attribute *thermal_perf_attrs[] = {
 	&mode_attribute.attr,
 	&fastcharge_attribute.attr,
+	&version_attribute.attr,
 	NULL,
 };
 
@@ -167,7 +182,7 @@ static int __init thermal_perf_bridge_init(void)
 		return ret;
 	}
 
-	pr_info("ThermalPerf: Ring-0 Kernel Bridge initialized (/sys/kernel/thermal_perf/{mode,fastcharge})\n");
+	pr_info("ThermalPerf: Ring-0 Kernel Bridge initialized (/sys/kernel/thermal_perf/{mode,fastcharge,version})\n");
 	return 0;
 }
 

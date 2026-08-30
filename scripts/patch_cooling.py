@@ -111,37 +111,6 @@ def patch_thermal_sysfs(filepath):
 
     print(f"::warning::Could not match cur_state_store in {filepath}")
 
-def patch_power_supply_core(filepath):
-    if not os.path.exists(filepath):
-        print(f"::warning::{filepath} not found")
-        return
-    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-        content = f.read()
-
-    decl = "extern int thermal_perf_filter_power_supply_prop(int psp, const union power_supply_propval *val);\n"
-    if "thermal_perf_filter_power_supply_prop" not in content:
-        content = decl + content
-
-    if "thermal_perf_filter_power_supply_prop(psp, val)" in content:
-        print("✓ power_supply_core.c already hooked")
-        return
-
-    hook_code = """
-	if (thermal_perf_filter_power_supply_prop(psp, val))
-		return 0;
-"""
-    fn_needle = "int power_supply_set_property"
-    if fn_needle in content:
-        idx = content.find(fn_needle)
-        brace_idx = content.find("{", idx)
-        content = content[:brace_idx+1] + hook_code + content[brace_idx+1:]
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("✓ Hooked power_supply_core.c (Universal PMIC Charge Control Limit Bypass Hook)")
-        return
-
-    print(f"::warning::Could not match power_supply_set_property in {filepath}")
-
 def patch_cpufreq_core(filepath):
     if not os.path.exists(filepath):
         print(f"::warning::{filepath} not found")
@@ -210,5 +179,4 @@ if __name__ == "__main__":
     patch_cpufreq_cooling(os.path.join(common_dir, "drivers/thermal/cpufreq_cooling.c"))
     patch_devfreq_cooling(os.path.join(common_dir, "drivers/thermal/devfreq_cooling.c"))
     patch_thermal_sysfs(os.path.join(common_dir, "drivers/thermal/thermal_sysfs.c"))
-    patch_power_supply_core(os.path.join(common_dir, "drivers/power/supply/power_supply_core.c"))
     patch_cpufreq_core(os.path.join(common_dir, "drivers/cpufreq/cpufreq.c"))

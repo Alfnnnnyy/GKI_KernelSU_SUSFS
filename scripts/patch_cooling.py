@@ -87,29 +87,56 @@ def patch_thermal_sysfs(filepath):
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
 
-    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\n"
+    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\nextern int thermal_perf_get_mode(void);\n"
     if "thermal_perf_filter_cdev_state" not in content:
         content = decl + content
 
-    if "thermal_perf_filter_cdev_state(cdev->type, &state)" in content:
-        print("✓ thermal_sysfs.c already hooked")
-        return
+    # 1. Dynamic Game Mode Temperature Spoof (Only active in Mode 2, Mode 1/Balance is 100% stock)
+    if "tp_mode == 2" not in content:
+        fn_temp = "temp_show("
+        temp_idx = content.find(fn_temp)
+        if temp_idx != -1:
+            ret_needle = "if (ret)\n\t\treturn ret;"
+            ret_idx = content.find(ret_needle, temp_idx)
+            if ret_idx == -1:
+                ret_needle = "if (ret) return ret;"
+                ret_idx = content.find(ret_needle, temp_idx)
+            if ret_idx != -1:
+                insert_pos = ret_idx + len(ret_needle)
+                temp_hook = """
+\t{
+\t\tint tp_mode = thermal_perf_get_mode();
+\t\tif (tp_mode == 2) {
+\t\t\tif (tz->type && (strstr(tz->type, "cpu") || strstr(tz->type, "gpu") ||
+\t\t\t    strstr(tz->type, "aoss") || strstr(tz->type, "quiet") ||
+\t\t\t    strstr(tz->type, "thermal") || strstr(tz->type, "soc") ||
+\t\t\t    strstr(tz->type, "cpuss") || strstr(tz->type, "gpuss") ||
+\t\t\t    strstr(tz->type, "nsphvx") || strstr(tz->type, "nsphmx") ||
+\t\t\t    strstr(tz->type, "ddr") || strstr(tz->type, "video") ||
+\t\t\t    strstr(tz->type, "camera"))) {
+\t\t\t\ttemp = 36500; /* 36.5°C during active Game Mode */
+\t\t\t}
+\t\t}
+\t}
+"""
+                content = content[:insert_pos] + temp_hook + content[insert_pos:]
+                print("✓ Hooked thermal_sysfs.c (Dynamic Game-Only Temp Spoof)")
 
-    fn_needle = "cur_state_store"
-    if fn_needle in content:
-        fn_idx = content.find(fn_needle)
-        # Match mutex_lock in cur_state_store
-        mutex_needle = "mutex_lock(&cdev->lock);"
-        m_idx = content.find(mutex_needle, fn_idx)
-        if m_idx != -1:
-            semi_idx = m_idx + len(mutex_needle)
-            content = content[:semi_idx] + "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);" + content[semi_idx:]
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(content)
-            print("✓ Hooked thermal_sysfs.c (Userspace Cooling Device Sysfs Write Hook)")
-            return
+    # 2. Hook cur_state_store (Cooling device filter)
+    if "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
+        fn_needle = "cur_state_store"
+        if fn_needle in content:
+            fn_idx = content.find(fn_needle)
+            # Match mutex_lock in cur_state_store
+            mutex_needle = "mutex_lock(&cdev->lock);"
+            m_idx = content.find(mutex_needle, fn_idx)
+            if m_idx != -1:
+                semi_idx = m_idx + len(mutex_needle)
+                content = content[:semi_idx] + "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);" + content[semi_idx:]
+                print("✓ Hooked thermal_sysfs.c (Userspace Cooling Device Sysfs Write Hook)")
 
-    print(f"::warning::Could not match cur_state_store in {filepath}")
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(content)
 
 def patch_cpufreq_core(filepath):
     if not os.path.exists(filepath):

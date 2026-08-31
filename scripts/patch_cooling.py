@@ -90,17 +90,16 @@ def patch_thermal_sysfs(filepath):
 
     # 1. Dynamic Game Mode Temperature Spoof (Only active in Mode 2, Mode 1/Balance is 100% stock)
     if "tp_mode == 2" not in content:
-        match_temp = re.search(r"\n(?:static\s+ssize_t\s+)?temp_show\s*\(", content)
+        match_temp = re.search(r"\n(?:static\s+ssize_t\s+)?temp_show\s*\([^{]+\{", content)
         if match_temp:
-            temp_idx = match_temp.start()
-            ret_needle = "if (ret)\n\t\treturn ret;"
-            ret_idx = content.find(ret_needle, temp_idx)
-            if ret_idx == -1:
-                ret_needle = "if (ret) return ret;"
-                ret_idx = content.find(ret_needle, temp_idx)
-            if ret_idx != -1:
-                insert_pos = ret_idx + len(ret_needle)
-                temp_hook = """
+            fn_start = match_temp.end()
+            fn_end = content.find("\n}", fn_start)
+            if fn_end != -1:
+                fn_body = content[fn_start:fn_end]
+                ret_match = re.search(r"(\n\s*return\s+(?:sprintf|sysfs_emit)\s*\(buf[^\n]+)", fn_body)
+                if ret_match:
+                    insert_pos = fn_start + ret_match.start()
+                    temp_hook = """
 \t{
 \t\textern int thermal_perf_get_mode(void);
 \t\tint tp_mode = thermal_perf_get_mode();
@@ -117,8 +116,8 @@ def patch_thermal_sysfs(filepath):
 \t\t}
 \t}
 """
-                content = content[:insert_pos] + temp_hook + content[insert_pos:]
-                print("✓ Hooked thermal_sysfs.c (Dynamic Game-Only Temp Spoof)")
+                    content = content[:insert_pos] + temp_hook + content[insert_pos:]
+                    print("✓ Hooked thermal_sysfs.c (Dynamic Game-Only Temp Spoof)")
 
     # 2. Hook cur_state_store (Cooling device filter)
     if "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:

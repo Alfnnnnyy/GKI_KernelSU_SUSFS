@@ -114,7 +114,7 @@ def patch_thermal_sysfs(filepath):
 \t\t\t    strstr(tz->type, "nsphvx") || strstr(tz->type, "nsphmx") ||
 \t\t\t    strstr(tz->type, "ddr") || strstr(tz->type, "video") ||
 \t\t\t    strstr(tz->type, "camera")) {
-\t\t\t\ttemp = 36500; /* 36.5°C during active Game Mode */
+\t\t\t\treturn sprintf(buf, "%d\\n", 36500); /* 36.5°C during active Game Mode */
 \t\t\t}
 \t\t}
 \t}

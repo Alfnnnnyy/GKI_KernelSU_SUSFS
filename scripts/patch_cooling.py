@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import re
 
 def patch_cpufreq_cooling(filepath):
     if not os.path.exists(filepath):
@@ -87,15 +88,11 @@ def patch_thermal_sysfs(filepath):
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
 
-    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\nextern int thermal_perf_get_mode(void);\n"
-    if "thermal_perf_filter_cdev_state" not in content:
-        content = decl + content
-
     # 1. Dynamic Game Mode Temperature Spoof (Only active in Mode 2, Mode 1/Balance is 100% stock)
     if "tp_mode == 2" not in content:
-        fn_temp = "temp_show("
-        temp_idx = content.find(fn_temp)
-        if temp_idx != -1:
+        match_temp = re.search(r"\n(?:static\s+ssize_t\s+)?temp_show\s*\(", content)
+        if match_temp:
+            temp_idx = match_temp.start()
             ret_needle = "if (ret)\n\t\treturn ret;"
             ret_idx = content.find(ret_needle, temp_idx)
             if ret_idx == -1:
@@ -105,6 +102,7 @@ def patch_thermal_sysfs(filepath):
                 insert_pos = ret_idx + len(ret_needle)
                 temp_hook = """
 \t{
+\t\textern int thermal_perf_get_mode(void);
 \t\tint tp_mode = thermal_perf_get_mode();
 \t\tif (tp_mode == 2) {
 \t\t\tif (strstr(tz->type, "cpu") || strstr(tz->type, "gpu") ||
@@ -124,15 +122,15 @@ def patch_thermal_sysfs(filepath):
 
     # 2. Hook cur_state_store (Cooling device filter)
     if "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:
-        fn_needle = "cur_state_store"
-        if fn_needle in content:
-            fn_idx = content.find(fn_needle)
-            # Match mutex_lock in cur_state_store
+        match_cdev = re.search(r"\n(?:static\s+ssize_t\s+)?cur_state_store\s*\(", content)
+        if match_cdev:
+            fn_idx = match_cdev.start()
             mutex_needle = "mutex_lock(&cdev->lock);"
             m_idx = content.find(mutex_needle, fn_idx)
             if m_idx != -1:
                 semi_idx = m_idx + len(mutex_needle)
-                content = content[:semi_idx] + "\n\tthermal_perf_filter_cdev_state(cdev->type, &state);" + content[semi_idx:]
+                cdev_hook = "\n\t{\n\t\textern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\n\t\tthermal_perf_filter_cdev_state(cdev->type, &state);\n\t}"
+                content = content[:semi_idx] + cdev_hook + content[semi_idx:]
                 print("✓ Hooked thermal_sysfs.c (Userspace Cooling Device Sysfs Write Hook)")
 
     with open(filepath, "w", encoding="utf-8") as f:

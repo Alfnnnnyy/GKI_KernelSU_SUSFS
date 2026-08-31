@@ -107,13 +107,13 @@ def patch_thermal_sysfs(filepath):
 \t{
 \t\tint tp_mode = thermal_perf_get_mode();
 \t\tif (tp_mode == 2) {
-\t\t\tif (tz->type && (strstr(tz->type, "cpu") || strstr(tz->type, "gpu") ||
+\t\t\tif (strstr(tz->type, "cpu") || strstr(tz->type, "gpu") ||
 \t\t\t    strstr(tz->type, "aoss") || strstr(tz->type, "quiet") ||
 \t\t\t    strstr(tz->type, "thermal") || strstr(tz->type, "soc") ||
 \t\t\t    strstr(tz->type, "cpuss") || strstr(tz->type, "gpuss") ||
 \t\t\t    strstr(tz->type, "nsphvx") || strstr(tz->type, "nsphmx") ||
 \t\t\t    strstr(tz->type, "ddr") || strstr(tz->type, "video") ||
-\t\t\t    strstr(tz->type, "camera"))) {
+\t\t\t    strstr(tz->type, "camera")) {
 \t\t\t\ttemp = 36500; /* 36.5°C during active Game Mode */
 \t\t\t}
 \t\t}

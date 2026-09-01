@@ -82,14 +82,8 @@ void thermal_perf_filter_cdev_state(const char *type, unsigned long *state)
 
 	/* 2. Game Mode: Neutralize CPU, GPU, DDR, Cluster, Pause, and Hotplug throttling */
 	if (mode == 2) {
-		if (strstr(type, "cpu") || strstr(type, "gpu") || 
-		    strstr(type, "kgsl") || strstr(type, "ddr") || 
-		    strstr(type, "cluster") || strstr(type, "pause") || 
-		    strstr(type, "hotplug") || strstr(type, "cdev") ||
-		    strstr(type, "cdsp") || strstr(type, "display")) {
-			*state = 0; /* Force State 0: 100% Zero Throttle, Max Clock */
-			return;
-		}
+		*state = 0; /* Force State 0: 100% Zero Throttle across ALL 70 cooling devices */
+		return;
 	}
 }
 EXPORT_SYMBOL_GPL(thermal_perf_filter_cdev_state);

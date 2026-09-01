@@ -111,15 +111,7 @@ def patch_thermal_sysfs(filepath):
 \t\textern int thermal_perf_get_mode(void);
 \t\tint tp_mode = thermal_perf_get_mode();
 \t\tif (tp_mode == 2) {
-\t\t\tif (strstr(tz->type, "cpu") || strstr(tz->type, "gpu") ||
-\t\t\t    strstr(tz->type, "aoss") || strstr(tz->type, "quiet") ||
-\t\t\t    strstr(tz->type, "thermal") || strstr(tz->type, "soc") ||
-\t\t\t    strstr(tz->type, "cpuss") || strstr(tz->type, "gpuss") ||
-\t\t\t    strstr(tz->type, "nsphvx") || strstr(tz->type, "nsphmx") ||
-\t\t\t    strstr(tz->type, "ddr") || strstr(tz->type, "video") ||
-\t\t\t    strstr(tz->type, "camera")) {
-\t\t\t\treturn sprintf(buf, "%d\\n", 29000); /* 29.0°C in Game Mode */
-\t\t\t}
+\t\t\treturn sprintf(buf, "%d\\n", 29000); /* 29.0°C for ALL 75 thermal zones in Game Mode */
 \t\t}
 \t}
 """
@@ -135,6 +127,7 @@ def patch_thermal_sysfs(filepath):
         match_cdev = re.search(r"\n(?:static\s+ssize_t\s+)?cur_state_store\s*\(", content)
         if match_cdev:
             fn_idx = match_cdev.start()
+            # Match mutex_lock in cur_state_store
             mutex_needle = "mutex_lock(&cdev->lock);"
             m_idx = content.find(mutex_needle, fn_idx)
             if m_idx != -1:
@@ -246,7 +239,7 @@ def patch_power_supply_sysfs(filepath):
                 content = content[:insert_pos] + psy_hook + content[insert_pos:]
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(content)
-                print("✓ Hooked power_supply_sysfs.c (Dynamic Battery Temp Spoof 29.0°C)")
+                print("✓ Hooked power_supply_sysfs.c (Dynamic Battery Temp Spoof)")
                 return
 
     print(f"::warning::Could not patch {filepath}")

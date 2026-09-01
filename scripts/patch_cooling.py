@@ -209,7 +209,7 @@ def patch_power_supply_sysfs(filepath):
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
 
-    if "POWER_SUPPLY_PROP_TEMP" in content and "thermal_perf_get_mode" not in content:
+    if "power_supply_show_property" in content and "thermal_perf_get_mode" not in content:
         match_fn = re.search(r"\n(?:static\s+ssize_t\s+)?power_supply_show_property\s*\([^{]+\{", content)
         if match_fn:
             fn_start = match_fn.end()
@@ -230,7 +230,7 @@ def patch_power_supply_sysfs(filepath):
 \t{
 \t\textern int thermal_perf_get_mode(void);
 \t\tif (thermal_perf_get_mode() == 2) {
-\t\t\tif (off == POWER_SUPPLY_PROP_TEMP || off == POWER_SUPPLY_PROP_TEMP_AMBIENT) {
+\t\t\tif (attr && attr->attr.name && strstr(attr->attr.name, "temp") != NULL) {
 \t\t\t\treturn sprintf(buf, "%d\\n", 290); /* 29.0°C in Game Mode */
 \t\t\t}
 \t\t}

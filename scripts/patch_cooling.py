@@ -93,13 +93,20 @@ def patch_thermal_sysfs(filepath):
         match_temp = re.search(r"\n(?:static\s+ssize_t\s+)?temp_show\s*\([^{]+\{", content)
         if match_temp:
             fn_start = match_temp.end()
-            fn_end = content.find("\n}", fn_start)
-            if fn_end != -1:
-                fn_body = content[fn_start:fn_end]
-                ret_match = re.search(r"(\n\s*return\s+(?:sprintf|sysfs_emit)\s*\(buf[^\n]+)", fn_body)
-                if ret_match:
-                    insert_pos = fn_start + ret_match.start()
-                    temp_hook = """
+            depth = 1
+            fn_end = fn_start
+            while depth > 0 and fn_end < len(content):
+                if content[fn_end] == '{':
+                    depth += 1
+                elif content[fn_end] == '}':
+                    depth -= 1
+                fn_end += 1
+            
+            fn_body = content[fn_start:fn_end]
+            ret_match = re.search(r"(\n\s*return\s+(?:sprintf|sysfs_emit)\s*\(buf[^\n]+)", fn_body)
+            if ret_match:
+                insert_pos = fn_start + ret_match.start()
+                temp_hook = """
 \t{
 \t\textern int thermal_perf_get_mode(void);
 \t\tint tp_mode = thermal_perf_get_mode();
@@ -116,8 +123,12 @@ def patch_thermal_sysfs(filepath):
 \t\t}
 \t}
 """
-                    content = content[:insert_pos] + temp_hook + content[insert_pos:]
-                    print("✓ Hooked thermal_sysfs.c (Dynamic Game-Only Temp Spoof)")
+                content = content[:insert_pos] + temp_hook + content[insert_pos:]
+                print("✓ Hooked thermal_sysfs.c (Dynamic Game-Only Temp Spoof)")
+            else:
+                print(f"::warning::Could not match return sprintf in temp_show of {filepath}")
+        else:
+            print(f"::warning::Could not match temp_show in {filepath}")
 
     # 2. Hook cur_state_store (Cooling device filter)
     if "thermal_perf_filter_cdev_state(cdev->type, &state)" not in content:

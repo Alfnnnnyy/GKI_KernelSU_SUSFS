@@ -118,7 +118,7 @@ def patch_thermal_sysfs(filepath):
 \t\t\t    strstr(tz->type, "nsphvx") || strstr(tz->type, "nsphmx") ||
 \t\t\t    strstr(tz->type, "ddr") || strstr(tz->type, "video") ||
 \t\t\t    strstr(tz->type, "camera")) {
-\t\t\t\treturn sprintf(buf, "%d\\n", 36500); /* 36.5°C during active Game Mode */
+\t\t\t\treturn sprintf(buf, "%d\\n", 29000); /* 29.0°C in Game Mode */
 \t\t\t}
 \t\t}
 \t}
@@ -209,9 +209,52 @@ def patch_cpufreq_core(filepath):
 
     print(f"::warning::Could not match cpufreq_set_policy in {filepath}")
 
+def patch_power_supply_sysfs(filepath):
+    if not os.path.exists(filepath):
+        print(f"::warning::{filepath} not found")
+        return
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+    if "POWER_SUPPLY_PROP_TEMP" in content and "thermal_perf_get_mode" not in content:
+        match_fn = re.search(r"\n(?:static\s+ssize_t\s+)?power_supply_show_property\s*\([^{]+\{", content)
+        if match_fn:
+            fn_start = match_fn.end()
+            depth = 1
+            fn_end = fn_start
+            while depth > 0 and fn_end < len(content):
+                if content[fn_end] == '{':
+                    depth += 1
+                elif content[fn_end] == '}':
+                    depth -= 1
+                fn_end += 1
+
+            fn_body = content[fn_start:fn_end]
+            ret_match = re.search(r"(\n\s*return\s+(?:sprintf|sysfs_emit)\s*\(buf[^\n]+)", fn_body)
+            if ret_match:
+                insert_pos = fn_start + ret_match.start()
+                psy_hook = """
+\t{
+\t\textern int thermal_perf_get_mode(void);
+\t\tif (thermal_perf_get_mode() == 2) {
+\t\t\tif (off == POWER_SUPPLY_PROP_TEMP || off == POWER_SUPPLY_PROP_TEMP_AMBIENT) {
+\t\t\t\treturn sprintf(buf, "%d\\n", 290); /* 29.0°C in Game Mode */
+\t\t\t}
+\t\t}
+\t}
+"""
+                content = content[:insert_pos] + psy_hook + content[insert_pos:]
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print("✓ Hooked power_supply_sysfs.c (Dynamic Battery Temp Spoof 29.0°C)")
+                return
+
+    print(f"::warning::Could not patch {filepath}")
+
 if __name__ == "__main__":
     common_dir = sys.argv[1] if len(sys.argv) > 1 else "."
     patch_cpufreq_cooling(os.path.join(common_dir, "drivers/thermal/cpufreq_cooling.c"))
     patch_devfreq_cooling(os.path.join(common_dir, "drivers/thermal/devfreq_cooling.c"))
     patch_thermal_sysfs(os.path.join(common_dir, "drivers/thermal/thermal_sysfs.c"))
     patch_cpufreq_core(os.path.join(common_dir, "drivers/cpufreq/cpufreq.c"))
+    patch_power_supply_sysfs(os.path.join(common_dir, "drivers/power/supply/power_supply_sysfs.c"))

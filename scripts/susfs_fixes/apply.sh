@@ -61,6 +61,12 @@ if grep -qF 'VMA_PAD_START(vma)' "$SUSFS_PATCH" \
   sed -i 's/VMA_PAD_START(vma)/vma->vm_end/g' "$SUSFS_PATCH"
 fi
 
+# 修复 SUSFS 2026-09-06 上游提交引入的 ksu_install_su_fd 符号缺失（ReSukiSU/SukiSU 未实现该函数）
+if grep -qF 'ksu_install_su_fd' "$SUSFS_PATCH"; then
+  echo "检测到 SUSFS 补丁注入了 ksu_install_su_fd，替换为 weak 桩函数以兼容 ReSukiSU/SukiSU..."
+  sed -i 's/extern int ksu_install_su_fd(void);/int __attribute__((weak)) ksu_install_su_fd(void) { return 0; }/g' "$SUSFS_PATCH"
+fi
+
 # 在应用主补丁前临时调整源码上下文，替代已归档的 wild 修复小补丁
 if [[ "$ANDROID_VERSION" == "android12" && "$KERNEL_VERSION" == "5.10" ]]; then
   if [[ "$CURRENT_SUB" -le 43 ]]; then
@@ -137,6 +143,12 @@ if [[ "$ANDROID_VERSION" == "android16" && "$KERNEL_VERSION" == "6.12" ]]; then
 fi
 
 patch -p1 < "$SUSFS_PATCH" || true
+
+# 确保 fs/exec.c 中的 ksu_install_su_fd 拥有 weak 桩函数定义，彻底防止 ld.lld 链接失败
+if grep -qF 'extern int ksu_install_su_fd(void);' fs/exec.c; then
+  echo "修正 fs/exec.c 中的 ksu_install_su_fd 声明为 weak 桩函数..."
+  sed -i 's/extern int ksu_install_su_fd(void);/int __attribute__((weak)) ksu_install_su_fd(void) { return 0; }/g' fs/exec.c
+fi
 
 # 主补丁应用后立即统计冲突，提前暴露补丁失配（无需等到编译失败再翻产物）
 SUSFS_REJ_COUNT=$(find . -name '*.rej' | wc -l)

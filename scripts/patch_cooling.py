@@ -139,6 +139,33 @@ def patch_thermal_sysfs(filepath):
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
 
+def patch_thermal_helpers(filepath):
+    if not os.path.exists(filepath):
+        print(f"::warning::{filepath} not found")
+        return
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+    decl = "extern void thermal_perf_filter_cdev_state(const char *type, unsigned long *state);\n"
+    if "thermal_perf_filter_cdev_state" not in content:
+        content = decl + content
+
+    if "thermal_perf_filter_cdev_state(cdev->type, &target)" in content:
+        print("✓ thermal_helpers.c already hooked")
+        return
+
+    match = re.search(r"(\n[ \t]*cdev->ops->set_cur_state\s*\(\s*cdev\s*,\s*target\s*\)\s*;)", content)
+    if match:
+        pos = match.start()
+        hook = "\n\tthermal_perf_filter_cdev_state(cdev->type, &target);"
+        content = content[:pos] + hook + content[pos:]
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("✓ Hooked thermal_helpers.c (In-Kernel Cooling Device Governor Interception)")
+        return
+
+    print(f"::warning::Could not match set_cur_state in {filepath}")
+
 def patch_cpufreq_core(filepath):
     if not os.path.exists(filepath):
         print(f"::warning::{filepath} not found")
@@ -249,5 +276,6 @@ if __name__ == "__main__":
     patch_cpufreq_cooling(os.path.join(common_dir, "drivers/thermal/cpufreq_cooling.c"))
     patch_devfreq_cooling(os.path.join(common_dir, "drivers/thermal/devfreq_cooling.c"))
     patch_thermal_sysfs(os.path.join(common_dir, "drivers/thermal/thermal_sysfs.c"))
+    patch_thermal_helpers(os.path.join(common_dir, "drivers/thermal/thermal_helpers.c"))
     patch_cpufreq_core(os.path.join(common_dir, "drivers/cpufreq/cpufreq.c"))
     patch_power_supply_sysfs(os.path.join(common_dir, "drivers/power/supply/power_supply_sysfs.c"))

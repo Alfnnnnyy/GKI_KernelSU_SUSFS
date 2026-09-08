@@ -19,7 +19,7 @@ cd "$COMMON_DIR"
 GIT_SHA="${GITHUB_SHA:0:7}"
 [ -z "$GIT_SHA" ] && GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
 RUN_NUM="${GITHUB_RUN_NUMBER:-custom}"
-TP_VERSION="${THERMAL_PERF_VERSION:-2.5.2-r${RUN_NUM}-${GIT_SHA}}"
+TP_VERSION="${THERMAL_PERF_VERSION:-2.5.9-r${RUN_NUM}-${GIT_SHA}}"
 echo "Kernel Bridge Version: $TP_VERSION"
 
 # 1. Create drivers/thermal/thermal_perf_bridge.c
@@ -44,6 +44,7 @@ cat << EOF > drivers/thermal/thermal_perf_bridge.c
 
 static int thermal_perf_mode = 1;       /* Default: 1 (Balance) */
 static int thermal_perf_fastcharge = 1; /* Default: 1 (Always Fast Charging / No Throttle) */
+static int thermal_perf_fps_stabilizer = 1; /* Default: 1 (Always 120 FPS / Max Display Refresh Rate Stabilizer) */
 const char *thermal_perf_get_version(void)
 {
 	return THERMAL_PERF_VERSION;
@@ -62,10 +63,17 @@ int thermal_perf_get_fastcharge(void)
 }
 EXPORT_SYMBOL_GPL(thermal_perf_get_fastcharge);
 
+int thermal_perf_get_fps_stabilizer(void)
+{
+	return thermal_perf_fps_stabilizer;
+}
+EXPORT_SYMBOL_GPL(thermal_perf_get_fps_stabilizer);
+
 void thermal_perf_filter_cdev_state(const char *type, unsigned long *state)
 {
 	int mode = thermal_perf_mode;
 	int fc = thermal_perf_fastcharge;
+	int fps_stab = thermal_perf_fps_stabilizer;
 
 	if (!type || !state)
 		return;
@@ -80,7 +88,19 @@ void thermal_perf_filter_cdev_state(const char *type, unsigned long *state)
 		}
 	}
 
-	/* 2. Game Mode: Neutralize CPU, GPU, DDR, Cluster, Pause, and Hotplug throttling */
+	/* 2. FPS Stabilizer (or Game Mode): Neutralize ALL Display, Panel, Frame rate, and DFPS throttling */
+	if (fps_stab == 1 || mode == 2) {
+		if (strstr(type, "display") || strstr(type, "fps") || 
+		    strstr(type, "panel") || strstr(type, "screen") || 
+		    strstr(type, "lcd") || strstr(type, "oled") ||
+		    strstr(type, "dfps") || strstr(type, "frame") ||
+		    strstr(type, "hz")) {
+			*state = 0; /* Force State 0: Always 120 FPS / Max Panel Refresh Rate (Zero Drop) */
+			return;
+		}
+	}
+
+	/* 3. Game Mode: Neutralize CPU, GPU, DDR, Cluster, Pause, and Hotplug throttling */
 	if (mode == 2) {
 		*state = 0; /* Force State 0: 100% Zero Throttle across ALL 70 cooling devices */
 		return;
@@ -149,6 +169,21 @@ static ssize_t fastcharge_store(struct kobject *kobj, struct kobj_attribute *att
 	return count;
 }
 
+static ssize_t fps_stabilizer_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", thermal_perf_fps_stabilizer);
+}
+
+static ssize_t fps_stabilizer_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int val;
+	if (kstrtoint(buf, 10, &val) < 0 || (val != 0 && val != 1))
+		return -EINVAL;
+	thermal_perf_fps_stabilizer = val;
+	pr_info("ThermalPerf: FPS Stabilizer (120Hz/Max Display Lock) set to %d\n", val);
+	return count;
+}
+
 static ssize_t version_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%s\n", THERMAL_PERF_VERSION);
@@ -156,11 +191,13 @@ static ssize_t version_show(struct kobject *kobj, struct kobj_attribute *attr, c
 
 static struct kobj_attribute mode_attribute = __ATTR(mode, 0644, mode_show, mode_store);
 static struct kobj_attribute fastcharge_attribute = __ATTR(fastcharge, 0644, fastcharge_show, fastcharge_store);
+static struct kobj_attribute fps_stabilizer_attribute = __ATTR(fps_stabilizer, 0644, fps_stabilizer_show, fps_stabilizer_store);
 static struct kobj_attribute version_attribute = __ATTR_RO(version);
 
 static struct attribute *thermal_perf_attrs[] = {
 	&mode_attribute.attr,
 	&fastcharge_attribute.attr,
+	&fps_stabilizer_attribute.attr,
 	&version_attribute.attr,
 	NULL,
 };

@@ -154,6 +154,18 @@ def patch_thermal_helpers(filepath):
         print("✓ thermal_helpers.c already hooked")
         return
 
+    # 1. Match __thermal_cdev_update calling thermal_cdev_set_cur_state(cdev, target); (Linux 5.10 - 6.12)
+    match = re.search(r"(\n[ \t]*thermal_cdev_set_cur_state\s*\(\s*cdev\s*,\s*target\s*\)\s*;)", content)
+    if match:
+        pos = match.start()
+        hook = "\n\tthermal_perf_filter_cdev_state(cdev->type, &target);"
+        content = content[:pos] + hook + content[pos:]
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("✓ Hooked thermal_helpers.c (In-Kernel Cooling Device Governor Interception via __thermal_cdev_update)")
+        return
+
+    # 2. Fallback pattern for older / alternative structures
     match = re.search(r"(\n[ \t]*cdev->ops->set_cur_state\s*\(\s*cdev\s*,\s*target\s*\)\s*;)", content)
     if match:
         pos = match.start()

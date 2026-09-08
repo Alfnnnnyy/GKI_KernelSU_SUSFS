@@ -366,3 +366,8 @@ if [ "$KSU_VARIANT" == "Official" ] || [ "$KSU_VARIANT" == "Next" ] || [ "$KSU_V
     fi
   fi
 fi
+
+# 应用 Mountinfo Overlay Cloaking (在 SUSFS 补丁注入 susfs_show_mountinfo 之后执行，确保全套 procfs 彻底清除 overlay 痕迹)
+if [ -f "$GITHUB_WORKSPACE/scripts/apply_mount_cloak.sh" ]; then
+  bash "$GITHUB_WORKSPACE/scripts/apply_mount_cloak.sh" "$KERNEL_ROOT"
+fi

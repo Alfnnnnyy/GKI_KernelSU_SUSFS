@@ -59,8 +59,3 @@ if os.path.exists(uinput_c):
             f.write(u_content)
         print("✓ Replaced uinput-xiaomi in drivers/input/misc/uinput.c")
 PY
-
-# 3. Apply Mountinfo Overlay Cloaking (hides Xiaomi mi_ext / root overlay markers from /proc/self/mountinfo)
-if [ -f "$GITHUB_WORKSPACE/scripts/apply_mount_cloak.sh" ]; then
-    bash "$GITHUB_WORKSPACE/scripts/apply_mount_cloak.sh" "$KERNEL_ROOT"
-fi

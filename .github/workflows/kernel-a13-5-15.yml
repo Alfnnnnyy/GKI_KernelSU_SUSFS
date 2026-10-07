@@ -17,8 +17,8 @@ on:
           - SukiSU
           - SukiSU(40726)
           - SukiSU(40548)
-          - ReSukiSU
-        default: ReSukiSU
+          - BakaSU
+        default: BakaSU
       version:
         description: "自定义版本名 (可选)"
         required: false

@@ -28,8 +28,8 @@ case "$KSU_VARIANT" in
 
     cd ..
     ;;
-  "Next"|"SukiSU"|"SukiSU(40726)"|"SukiSU(40548)"|"ReSukiSU")
-    echo "Next/SukiSU/SukiSU(40726)/SukiSU(40548)/ReSukiSU 使用内置 SUSFS 支持"
+  "Next"|"SukiSU"|"SukiSU(40726)"|"SukiSU(40548)"|"BakaSU")
+    echo "Next/SukiSU/SukiSU(40726)/SukiSU(40548)/BakaSU 使用内置 SUSFS 支持"
     ;;
 esac
 
@@ -61,9 +61,9 @@ if grep -qF 'VMA_PAD_START(vma)' "$SUSFS_PATCH" \
   sed -i 's/VMA_PAD_START(vma)/vma->vm_end/g' "$SUSFS_PATCH"
 fi
 
-# 修复 SUSFS 2026-09-06 上游提交引入的 ksu_install_su_fd 符号缺失（ReSukiSU/SukiSU 未实现该函数）
+# 修复 SUSFS 2026-09-06 上游提交引入的 ksu_install_su_fd 符号缺失（BakaSU/SukiSU 未实现该函数）
 if grep -qF 'ksu_install_su_fd' "$SUSFS_PATCH"; then
-  echo "检测到 SUSFS 补丁注入了 ksu_install_su_fd，替换为 weak 桩函数以兼容 ReSukiSU/SukiSU..."
+  echo "检测到 SUSFS 补丁注入了 ksu_install_su_fd，替换为 weak 桩函数以兼容 BakaSU/SukiSU..."
   sed -i 's/extern int ksu_install_su_fd(void);/int __attribute__((weak)) ksu_install_su_fd(void) { return 0; }/g' "$SUSFS_PATCH"
 fi
 
@@ -225,7 +225,7 @@ if [[ "$ANDROID_VERSION" == "android16" && "$KERNEL_VERSION" == "6.12" ]]; then
   fi
 fi
 
-if [ "$KSU_VARIANT" == "Official" ] || [ "$KSU_VARIANT" == "Next" ] || [ "$KSU_VARIANT" == "SukiSU" ] || [ "$KSU_VARIANT" == "SukiSU(40726)" ] || [ "$KSU_VARIANT" == "SukiSU(40548)" ] || [ "$KSU_VARIANT" == "ReSukiSU" ]; then
+if [ "$KSU_VARIANT" == "Official" ] || [ "$KSU_VARIANT" == "Next" ] || [ "$KSU_VARIANT" == "SukiSU" ] || [ "$KSU_VARIANT" == "SukiSU(40726)" ] || [ "$KSU_VARIANT" == "SukiSU(40548)" ] || [ "$KSU_VARIANT" == "BakaSU" ]; then
   fix_namespace_susfs_mount_decls() {
     local label="$1"
     local marker_pattern="$2"

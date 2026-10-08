@@ -355,13 +355,13 @@ jobs:
           cd ..
           rm -rf susfs-temp "$NAME"
 
-      - name: 添加 ZeroMount 模块
-        id: add_ZEROMOUNT
+      - name: 添加 NoMount 模块
+        id: add_NOMOUNT
         continue-on-error: true
         run: |
-          echo "下载官方 ZeroMount 模块..."
-          mkdir -p zeromount-module
-          REL_JSON=$(curl -fsSL "https://api.github.com/repos/Enginex0/zeromount/releases/latest")
+          echo "下载官方 NoMount 模块..."
+          mkdir -p nomount-module
+          REL_JSON=$(curl -fsSL "https://api.github.com/repos/maxsteeel/nomount/releases/latest")
           DL_URL=$(echo "$REL_JSON" | jq -r '.assets[] | select(.name | endswith(".zip") and (contains("debug") | not)) | .browser_download_url' | head -n 1)
           FILE_NAME=$(echo "$REL_JSON" | jq -r '.assets[] | select(.name | endswith(".zip") and (contains("debug") | not)) | .name' | head -n 1)
           if [ -z "$DL_URL" ] || [ "$DL_URL" == "null" ]; then
@@ -369,10 +369,10 @@ jobs:
             FILE_NAME=$(echo "$REL_JSON" | jq -r '.assets[] | select(.name | endswith(".zip")) | .name' | head -n 1)
           fi
           if [ -n "$DL_URL" ] && [ "$DL_URL" != "null" ]; then
-            echo "下载 ZeroMount 模块: $DL_URL"
-            curl -fL -o "zeromount-module/$FILE_NAME" "$DL_URL"
+            echo "下载 NoMount 模块: $DL_URL"
+            curl -fL -o "nomount-module/$FILE_NAME" "$DL_URL"
           else
-            echo "::warning::未找到 ZeroMount 发布资产"
+            echo "::warning::未找到 NoMount 发布资产"
           fi
 
       - name: Notify on failure
@@ -394,9 +394,9 @@ jobs:
           name: susfs-${{ env.SUSFS_NAME }}
           path: ./susfs-module/*
 
-      - name: 上传 ZeroMount 模块
-        if: steps.add_ZEROMOUNT.outcome == 'success'
+      - name: 上传 NoMount 模块
+        if: steps.add_NOMOUNT.outcome == 'success'
         uses: actions/upload-artifact@v6
         with:
-          name: zeromount-module
-          path: ./zeromount-module/*
+          name: nomount-module
+          path: ./nomount-module/*

@@ -92,7 +92,7 @@ on:
         type: boolean
         default: false
       build_nomount:
-        description: "启用 ZeroMount VFS 挂载重定向 (Driver & Metamodule)"
+        description: "启用 NoMount VFS 挂载重定向 (Driver & Metamodule)"
         required: false
         type: boolean
         default: false
@@ -585,7 +585,7 @@ jobs:
           # Feature statuses (dynamic Enabled / Disabled)
           echo "LZ4_STATUS=${{ inputs.use_zram && 'Enabled (LZ4KD / LZ4HC)' || 'Disabled' }}" >> $GITHUB_ENV
           echo "BBG_STATUS=${{ inputs.use_bbg && 'Enabled' || 'Disabled' }}" >> $GITHUB_ENV
-          echo "ZEROMOUNT_STATUS=${{ inputs.build_nomount && 'Enabled (Driver & Metamodule)' || 'Disabled' }}" >> $GITHUB_ENV
+          echo "NOMOUNT_STATUS=${{ inputs.build_nomount && 'Enabled (Driver & Metamodule)' || 'Disabled' }}" >> $GITHUB_ENV
           echo "DROIDSPACES_STATUS=${{ inputs.droidspaces != 'off' && 'Enabled' || 'Disabled' }}" >> $GITHUB_ENV
           echo "NTSYNC_STATUS=${{ inputs.droidspaces_ntsync && 'Enabled' || 'Disabled' }}" >> $GITHUB_ENV
           echo "REKERNEL_STATUS=${{ inputs.use_rekernel && 'Enabled' || 'Disabled' }}" >> $GITHUB_ENV
@@ -607,7 +607,7 @@ jobs:
 
           # Mount Method
           if [ "${{ inputs.build_nomount }}" = "true" ]; then
-            echo "MOUNT_TYPE=VFS(ZeroMount)" >> $GITHUB_ENV
+            echo "MOUNT_TYPE=VFS(NoMount)" >> $GITHUB_ENV
           elif [ "${{ inputs.kernelsu_variant }}" = "Official" ]; then
             echo "MOUNT_TYPE=OVERLAYFS" >> $GITHUB_ENV
           else
@@ -768,7 +768,7 @@ jobs:
           | SUSFS | $SUS_VER |
           | Hook Type | $HOOK_TYPE |
           | Mount Method | $MOUNT_TYPE |
-          | ZeroMount | $ZEROMOUNT_STATUS |
+          | NoMount | $NOMOUNT_STATUS |
           | LTO | Thin LTO |
           | Baseband Guard (BBG) | $BBG_STATUS |
           | ZRAM / LZ4KD | $LZ4_STATUS |
@@ -876,10 +876,10 @@ jobs:
           echo "准备上传 APK 与模块..."
           apk_count=$(find ./downloaded-artifacts -type f -name "*.apk" | wc -l || true)
           sus_count=$(find ./downloaded-artifacts -type f -path "./downloaded-artifacts/susfs-*/*" | wc -l || true)
-          zeromount_count=$(find ./downloaded-artifacts -type f -path "./downloaded-artifacts/zeromount-*/*" | wc -l || true)
+          nomount_count=$(find ./downloaded-artifacts -type f -path "./downloaded-artifacts/nomount-*/*" | wc -l || true)
           echo "APK files: ${apk_count}"
           echo "SUSFS files: ${sus_count}"
-          echo "ZeroMount files: ${zeromount_count}"
+          echo "NoMount files: ${nomount_count}"
           find ./downloaded-artifacts -type f -name "*.apk" -print0 | \
           while IFS= read -r -d '' f; do
             gh release upload "$NEW_TAG" "$f" || true
@@ -888,7 +888,7 @@ jobs:
           while IFS= read -r -d '' f; do
             gh release upload "$NEW_TAG" "$f" || true
           done
-          find ./downloaded-artifacts -type f -path "./downloaded-artifacts/zeromount-*/*" -print0 | \
+          find ./downloaded-artifacts -type f -path "./downloaded-artifacts/nomount-*/*" -print0 | \
           while IFS= read -r -d '' f; do
             gh release upload "$NEW_TAG" "$f" || true
           done

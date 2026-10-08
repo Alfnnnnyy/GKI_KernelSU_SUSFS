@@ -1004,11 +1004,11 @@ jobs:
           CONFIG_KSU_SUSFS_SUS_MAP=y
           EOF
 
-      - name: 应用 ZeroMount 补丁并配置
+      - name: 应用 NoMount 补丁并配置
         if: inputs.build_nomount
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
-          bash "$GITHUB_WORKSPACE/scripts/apply_zeromount.sh" "${{ inputs.android_version }}" "${{ inputs.kernel_version }}" "$KERNEL_ROOT" 
+          bash "$GITHUB_WORKSPACE/scripts/apply_nomount.sh" "${{ inputs.android_version }}" "${{ inputs.kernel_version }}" "$KERNEL_ROOT" 
 
       - name: 配置内核名称
         working-directory: ${{ env.KERNEL_ROOT }}
@@ -1138,7 +1138,7 @@ jobs:
               if [ -f "build/build.sh" ]; then
                 EXTRA_CFLAGS="-Wno-error=unused-label -Wno-unused-label" LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || exit 1
                 strings "out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist/Image" | grep 'Linux version'
-                strings "out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist/Image" | grep -i 'zeromount' || echo "::warning::zeromount string not in Image"
+                strings "out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist/Image" | grep -i 'nomount' || echo "::warning::nomount string not in Image"
               else
                 # 提取 gki_defconfig 修改到 fragment，避免 bazel trim 检查失败
                 FRAG="common/arch/arm64/configs/ksu.fragment"
@@ -1151,14 +1151,14 @@ jobs:
                   FRAG_FLAG="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
                 fi
                 # 确保 defconfig 含有 NOMOUNT
-                if [ "${{ inputs.build_nomount }}" = "true" ]; then grep -q "^CONFIG_ZEROMOUNT=y" "$DEFCONFIG" || echo "CONFIG_ZEROMOUNT=y" >> "$DEFCONFIG"; fi
+                if [ "${{ inputs.build_nomount }}" = "true" ]; then grep -q "^CONFIG_NOMOUNT=y" "$DEFCONFIG" || echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"; fi
                 LTO_FLAG="--lto=thin"
                 if [ "${{ inputs.kernel_version }}" = "6.12" ]; then
                   LTO_FLAG="--lto=none"
                 fi
                 tools/bazel build --disk_cache=/home/runner/.cache/bazel --config=fast $LTO_FLAG $FRAG_FLAG //common:kernel_aarch64_dist || exit 1
                 strings ./bazel-bin/common/kernel_aarch64/Image | grep 'Linux version'
-                strings ./bazel-bin/common/kernel_aarch64/Image | grep -i 'zeromount' || echo "::warning::zeromount string not in Image"
+                strings ./bazel-bin/common/kernel_aarch64/Image | grep -i 'nomount' || echo "::warning::nomount string not in Image"
               fi
 
               echo "当前 KSU 最新提交日期: ${KSU_LATEST_COMMIT_DATE}"

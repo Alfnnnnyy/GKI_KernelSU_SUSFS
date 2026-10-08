@@ -1031,6 +1031,12 @@ jobs:
           if ! grep -q "^CONFIG_NET_SCH_FQ=y" "$DEFCONFIG"; then
             echo "CONFIG_NET_SCH_FQ=y" >> "$DEFCONFIG"
           fi
+          # 禁用默认会被设为 =m 的算法，避免 Bazel module_outs 校验报错
+          for cfg in CONFIG_TCP_CONG_BIC CONFIG_TCP_CONG_WESTWOOD CONFIG_TCP_CONG_HTCP; do
+            sed -i "/^${cfg}=/d" "$DEFCONFIG" || true
+            sed -i "/^# ${cfg} is not set/d" "$DEFCONFIG" || true
+            echo "# ${cfg} is not set" >> "$DEFCONFIG"
+          done
           echo "TCP BBR 配置完成"
 
       - name: 应用 ZeroMount 补丁并配置
@@ -1048,6 +1054,7 @@ jobs:
             sed -i '/^[[:space:]]*"protected_exports_list"[[:space:]]*:[[:space:]]*"android\/abi_gki_protected_exports_aarch64",$/d' ./common/BUILD.bazel
             sed -i '/kmi_symbol_list_strict_mode/d' ./common/BUILD.bazel
             sed -i 's/check_defconfig = True/check_defconfig = False/g' ./common/BUILD.bazel 2>/dev/null || true
+            sed -i '/module_outs\s*=\s*\[/a\        "net/ipv4/tcp_westwood.ko",\n        "net/ipv4/tcp_bic.ko",\n        "net/ipv4/tcp_htcp.ko",' ./common/BUILD.bazel 2>/dev/null || true
             rm -rf ./common/android/abi_gki_protected_exports_*
             sed -i '/name = "kernel_aarch64",/a\    check_defconfig = "disabled",' ./common/BUILD.bazel 2>/dev/null || true
             sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl
@@ -1181,7 +1188,14 @@ jobs:
                 fi
                 # 确保 defconfig 含有 NOMOUNT
                 if [ "${{ inputs.build_nomount }}" = "true" ]; then grep -q "^CONFIG_ZEROMOUNT=y" "$DEFCONFIG" || echo "CONFIG_ZEROMOUNT=y" >> "$DEFCONFIG"; fi
-                if [ "${{ inputs.use_bbr }}" = "true" ]; then grep -q "^CONFIG_TCP_CONG_ADVANCED=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$DEFCONFIG"; grep -q "^CONFIG_TCP_CONG_BBR=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"; grep -q "^CONFIG_DEFAULT_BBR=y" "$DEFCONFIG" || echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"; fi
+                if [ "${{ inputs.use_bbr }}" = "true" ]; then
+                  grep -q "^CONFIG_TCP_CONG_ADVANCED=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$DEFCONFIG"
+                  grep -q "^CONFIG_TCP_CONG_BBR=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"
+                  grep -q "^CONFIG_DEFAULT_BBR=y" "$DEFCONFIG" || echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"
+                  echo "# CONFIG_TCP_CONG_BIC is not set" >> "$FRAG"
+                  echo "# CONFIG_TCP_CONG_WESTWOOD is not set" >> "$FRAG"
+                  echo "# CONFIG_TCP_CONG_HTCP is not set" >> "$FRAG"
+                fi
                 LTO_FLAG="--lto=thin"
                 if [ "${{ inputs.kernel_version }}" = "6.12" ]; then
                   LTO_FLAG="--lto=none"

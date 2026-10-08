@@ -48,6 +48,10 @@ on:
         required: false
         type: boolean
         default: true
+      use_bbr:
+        required: false
+        type: boolean
+        default: true
       use_kpm:
         required: false
         type: string
@@ -111,6 +115,7 @@ jobs:
           echo "SUSFS 状态    : ${{ inputs.enable_susfs }}"
           echo "ZRAM 增强     : ${{ inputs.use_zram }}"
           echo "BBG 补丁      : ${{ inputs.use_bbg }}"
+          echo "TCP BBR 拥塞控制: ${{ inputs.use_bbr }}"
           echo "KPM 功能      : ${{ inputs.use_kpm }}"
           echo "Re-Kernel     : ${{ inputs.use_rekernel }}"
           echo "CVE-2026-43499: ${{ inputs.cve_2026_43499_patch }}"
@@ -1004,6 +1009,26 @@ jobs:
           CONFIG_KSU_SUSFS_SUS_MAP=y
           EOF
 
+      - name: 配置 TCP BBR 拥塞控制
+        if: inputs.use_bbr
+        run: |
+          echo "=== 配置 TCP BBR 拥塞控制 ==="
+          sed -i 's/^CONFIG_DEFAULT_CUBIC=y/# CONFIG_DEFAULT_CUBIC is not set/' "$DEFCONFIG" || true
+          sed -i 's/^CONFIG_DEFAULT_TCP_CONG="cubic"/CONFIG_DEFAULT_TCP_CONG="bbr"/' "$DEFCONFIG" || true
+          if ! grep -q "^CONFIG_TCP_CONG_BBR=y" "$DEFCONFIG"; then
+            echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"
+          fi
+          if ! grep -q "^CONFIG_DEFAULT_BBR=y" "$DEFCONFIG"; then
+            echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"
+          fi
+          if ! grep -q '^CONFIG_DEFAULT_TCP_CONG="bbr"' "$DEFCONFIG"; then
+            echo 'CONFIG_DEFAULT_TCP_CONG="bbr"' >> "$DEFCONFIG"
+          fi
+          if ! grep -q "^CONFIG_NET_SCH_FQ=y" "$DEFCONFIG"; then
+            echo "CONFIG_NET_SCH_FQ=y" >> "$DEFCONFIG"
+          fi
+          echo "TCP BBR 配置完成"
+
       - name: 应用 NoMount 补丁并配置
         if: inputs.build_nomount
         working-directory: ${{ env.KERNEL_ROOT }}
@@ -1152,6 +1177,7 @@ jobs:
                 fi
                 # 确保 defconfig 含有 NOMOUNT
                 if [ "${{ inputs.build_nomount }}" = "true" ]; then grep -q "^CONFIG_NOMOUNT=y" "$DEFCONFIG" || echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"; grep -q "^CONFIG_KEYS=y" "$DEFCONFIG" || echo "CONFIG_KEYS=y" >> "$DEFCONFIG"; fi
+                if [ "${{ inputs.use_bbr }}" = "true" ]; then grep -q "^CONFIG_TCP_CONG_BBR=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"; fi
                 LTO_FLAG="--lto=thin"
                 if [ "${{ inputs.kernel_version }}" = "6.12" ]; then
                   LTO_FLAG="--lto=none"

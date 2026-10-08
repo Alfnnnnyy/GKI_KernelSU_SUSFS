@@ -1151,7 +1151,7 @@ jobs:
                   FRAG_FLAG="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
                 fi
                 # 确保 defconfig 含有 NOMOUNT
-                if [ "${{ inputs.build_nomount }}" = "true" ]; then grep -q "^CONFIG_NOMOUNT=y" "$DEFCONFIG" || echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"; fi
+                if [ "${{ inputs.build_nomount }}" = "true" ]; then grep -q "^CONFIG_NOMOUNT=y" "$DEFCONFIG" || echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"; grep -q "^CONFIG_KEYS=y" "$DEFCONFIG" || echo "CONFIG_KEYS=y" >> "$DEFCONFIG"; fi
                 LTO_FLAG="--lto=thin"
                 if [ "${{ inputs.kernel_version }}" = "6.12" ]; then
                   LTO_FLAG="--lto=none"

@@ -88,6 +88,9 @@ if [ -f "$DEFCONFIG" ]; then
     echo "Adding CONFIG_NOMOUNT=y to defconfig..."
     echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"
   fi
+  if ! grep -q "^CONFIG_KEYS=y" "$DEFCONFIG"; then
+    echo "CONFIG_KEYS=y" >> "$DEFCONFIG"
+  fi
 fi
 
 echo "✓ NoMount successfully integrated into kernel source!"

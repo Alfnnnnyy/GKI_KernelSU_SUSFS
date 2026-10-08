@@ -1054,7 +1054,6 @@ jobs:
             sed -i '/^[[:space:]]*"protected_exports_list"[[:space:]]*:[[:space:]]*"android\/abi_gki_protected_exports_aarch64",$/d' ./common/BUILD.bazel
             sed -i '/kmi_symbol_list_strict_mode/d' ./common/BUILD.bazel
             sed -i 's/check_defconfig = True/check_defconfig = False/g' ./common/BUILD.bazel 2>/dev/null || true
-            sed -i '/module_outs\s*=\s*\[/a\        "net/ipv4/tcp_westwood.ko",\n        "net/ipv4/tcp_bic.ko",\n        "net/ipv4/tcp_htcp.ko",' ./common/BUILD.bazel 2>/dev/null || true
             rm -rf ./common/android/abi_gki_protected_exports_*
             sed -i '/name = "kernel_aarch64",/a\    check_defconfig = "disabled",' ./common/BUILD.bazel 2>/dev/null || true
             sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl

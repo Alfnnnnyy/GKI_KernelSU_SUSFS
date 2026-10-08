@@ -960,6 +960,7 @@ jobs:
           CONFIG_KSU=y
           CONFIG_TMPFS_XATTR=y
           CONFIG_TMPFS_POSIX_ACL=y
+          EOF
 
           if [ "${{ inputs.ksu_variant }}" == "SukiSU" ] || [ "${{ inputs.ksu_variant }}" == "SukiSU(40726)" ] || [ "${{ inputs.ksu_variant }}" == "SukiSU(40548)" ] || [ "${{ inputs.ksu_variant }}" == "BakaSU" ] || [ "${{ inputs.ksu_variant }}" == "Next" ]; then
             if [[ "${{ inputs.use_kpm }}" == enabled* ]] || [[ "${{ inputs.use_kpm }}" == patched* ]]; then
@@ -1015,6 +1016,9 @@ jobs:
           echo "=== 配置 TCP BBR 拥塞控制 ==="
           sed -i 's/^CONFIG_DEFAULT_CUBIC=y/# CONFIG_DEFAULT_CUBIC is not set/' "$DEFCONFIG" || true
           sed -i 's/^CONFIG_DEFAULT_TCP_CONG="cubic"/CONFIG_DEFAULT_TCP_CONG="bbr"/' "$DEFCONFIG" || true
+          if ! grep -q "^CONFIG_TCP_CONG_ADVANCED=y" "$DEFCONFIG"; then
+            echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$DEFCONFIG"
+          fi
           if ! grep -q "^CONFIG_TCP_CONG_BBR=y" "$DEFCONFIG"; then
             echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"
           fi
@@ -1177,7 +1181,7 @@ jobs:
                 fi
                 # 确保 defconfig 含有 NOMOUNT
                 if [ "${{ inputs.build_nomount }}" = "true" ]; then grep -q "^CONFIG_NOMOUNT=y" "$DEFCONFIG" || echo "CONFIG_NOMOUNT=y" >> "$DEFCONFIG"; grep -q "^CONFIG_KEYS=y" "$DEFCONFIG" || echo "CONFIG_KEYS=y" >> "$DEFCONFIG"; fi
-                if [ "${{ inputs.use_bbr }}" = "true" ]; then grep -q "^CONFIG_TCP_CONG_BBR=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"; fi
+                if [ "${{ inputs.use_bbr }}" = "true" ]; then grep -q "^CONFIG_TCP_CONG_ADVANCED=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$DEFCONFIG"; grep -q "^CONFIG_TCP_CONG_BBR=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"; grep -q "^CONFIG_DEFAULT_BBR=y" "$DEFCONFIG" || echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"; fi
                 LTO_FLAG="--lto=thin"
                 if [ "${{ inputs.kernel_version }}" = "6.12" ]; then
                   LTO_FLAG="--lto=none"

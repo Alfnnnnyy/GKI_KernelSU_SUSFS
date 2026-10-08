@@ -800,7 +800,7 @@ jobs:
           | \`*.img\` | Stock / Boot / Vendor Boot images |
           | \`*.apk\` | KernelSU / BakaSU Manager app |
           | \`susfs-*.zip\` | SUSFS companion module |
-          | \`NoMount-*.zip\` | NoMount metamodule |
+          | \`zeromount-*.zip\` | ZeroMount metamodule |
 
           > [!IMPORTANT]
           > - Always backup your stock \`boot\` / \`init_boot\` image before flashing.

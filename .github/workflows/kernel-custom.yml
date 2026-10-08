@@ -108,6 +108,11 @@ on:
         required: true
         type: boolean
         default: false
+      use_bbr:
+        description: "启用 TCP BBR 拥塞控制算法 (默认 BBR)"
+        required: false
+        type: boolean
+        default: true
       use_rekernel:
         description: "启用 Re-Kernel 驱动"
         required: false
@@ -282,6 +287,7 @@ jobs:
       build_time: ${{ inputs.build_time || '' }}
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
+      use_bbr: ${{ inputs.use_bbr != false }}
       use_kpm: ${{ inputs.use_kpm }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
       cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
@@ -313,6 +319,7 @@ jobs:
       build_time: ${{ inputs.build_time || '' }}
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
+      use_bbr: ${{ inputs.use_bbr != false }}
       use_kpm: ${{ inputs.use_kpm }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
       cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
@@ -344,6 +351,7 @@ jobs:
       build_time: ${{ inputs.build_time || '' }}
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
+      use_bbr: ${{ inputs.use_bbr != false }}
       use_kpm: ${{ inputs.use_kpm }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
       cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
@@ -375,6 +383,7 @@ jobs:
       build_time: ${{ inputs.build_time || '' }}
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
+      use_bbr: ${{ inputs.use_bbr != false }}
       use_kpm: ${{ inputs.use_kpm }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
       cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
@@ -406,6 +415,7 @@ jobs:
       build_time: ${{ inputs.build_time || '' }}
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
+      use_bbr: ${{ inputs.use_bbr != false }}
       use_kpm: ${{ inputs.use_kpm }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
       cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
@@ -585,6 +595,7 @@ jobs:
           # Feature statuses (dynamic Enabled / Disabled)
           echo "LZ4_STATUS=${{ inputs.use_zram && 'Enabled (LZ4KD / LZ4HC)' || 'Disabled' }}" >> $GITHUB_ENV
           echo "BBG_STATUS=${{ inputs.use_bbg && 'Enabled' || 'Disabled' }}" >> $GITHUB_ENV
+          echo "BBR_STATUS=${{ inputs.use_bbr != false && 'Enabled (BBR Default)' || 'Disabled' }}" >> $GITHUB_ENV
           echo "ZEROMOUNT_STATUS=${{ inputs.build_nomount && 'Enabled (Driver & Metamodule)' || 'Disabled' }}" >> $GITHUB_ENV
           echo "DROIDSPACES_STATUS=${{ inputs.droidspaces != 'off' && 'Enabled' || 'Disabled' }}" >> $GITHUB_ENV
           echo "NTSYNC_STATUS=${{ inputs.droidspaces_ntsync && 'Enabled' || 'Disabled' }}" >> $GITHUB_ENV
@@ -771,6 +782,7 @@ jobs:
           | ZeroMount | $ZEROMOUNT_STATUS |
           | LTO | Thin LTO |
           | Baseband Guard (BBG) | $BBG_STATUS |
+          | TCP BBR | $BBR_STATUS |
           | ZRAM / LZ4KD | $LZ4_STATUS |
           | KPM | $KPM_STATUS |
           | Droidspaces | $DROIDSPACES_STATUS |

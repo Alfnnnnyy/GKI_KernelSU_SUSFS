@@ -1031,12 +1031,14 @@ jobs:
           if ! grep -q "^CONFIG_NET_SCH_FQ=y" "$DEFCONFIG"; then
             echo "CONFIG_NET_SCH_FQ=y" >> "$DEFCONFIG"
           fi
-          # 禁用默认会被设为 =m 的算法，避免 Bazel module_outs 校验报错
-          for cfg in CONFIG_TCP_CONG_BIC CONFIG_TCP_CONG_WESTWOOD CONFIG_TCP_CONG_HTCP; do
-            sed -i "/^${cfg}=/d" "$DEFCONFIG" || true
-            sed -i "/^# ${cfg} is not set/d" "$DEFCONFIG" || true
-            echo "# ${cfg} is not set" >> "$DEFCONFIG"
-          done
+          # 将 net/ipv4/Kconfig 中默认 default m 的算法修改为 default n，彻底杜绝生成多余 .ko
+          KCONFIG_NET="$KERNEL_ROOT/common/net/ipv4/Kconfig"
+          if [ ! -f "$KCONFIG_NET" ] && [ -f "$KERNEL_ROOT/net/ipv4/Kconfig" ]; then
+            KCONFIG_NET="$KERNEL_ROOT/net/ipv4/Kconfig"
+          fi
+          if [ -f "$KCONFIG_NET" ]; then
+            perl -i -0777 -pe 's/(config TCP_CONG_(?:BIC|WESTWOOD|HTCP)\b[\s\S]*?default\s+)m/${1}n/g' "$KCONFIG_NET" || true
+          fi
           echo "TCP BBR 配置完成"
 
       - name: 应用 NoMount 补丁并配置
@@ -1177,7 +1179,7 @@ jobs:
               else
                 # 提取 gki_defconfig 修改到 fragment，避免 bazel trim 检查失败
                 FRAG="common/arch/arm64/configs/ksu.fragment"
-                diff "$DEFCONFIG.orig" "$DEFCONFIG" | grep '^>' | sed 's/^> //; s/^[[:space:]]*//' > "$FRAG" || true
+                diff "$DEFCONFIG.orig" "$DEFCONFIG" | grep '^>' | sed 's/^> //; s/^[[:space:]]*//' | grep -v '^[[:space:]]*#' > "$FRAG" || true
                 echo "=== KSU Fragment 内容 ==="
                 cat "$FRAG"
                 echo "========================="
@@ -1191,9 +1193,6 @@ jobs:
                   grep -q "^CONFIG_TCP_CONG_ADVANCED=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$DEFCONFIG"
                   grep -q "^CONFIG_TCP_CONG_BBR=y" "$DEFCONFIG" || echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"
                   grep -q "^CONFIG_DEFAULT_BBR=y" "$DEFCONFIG" || echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"
-                  echo "# CONFIG_TCP_CONG_BIC is not set" >> "$FRAG"
-                  echo "# CONFIG_TCP_CONG_WESTWOOD is not set" >> "$FRAG"
-                  echo "# CONFIG_TCP_CONG_HTCP is not set" >> "$FRAG"
                 fi
                 LTO_FLAG="--lto=thin"
                 if [ "${{ inputs.kernel_version }}" = "6.12" ]; then
